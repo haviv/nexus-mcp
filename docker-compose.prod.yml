@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    platform: linux/amd64
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - MCP_SQL_COMMAND=/app/mcp/MssqlMcp
+      - MCP_CONNECTION_STRING=Server=sqlserver,1433;Database=MCPNexus;User Id=sa;Password=YourStrong!Passw0rd;TrustServerCertificate=true;
+      - MCP_NEXUS_URL=http://localhost:3000/mcp-nexus/server
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH}
+      - JWT_SECRET=${JWT_SECRET}
+    volumes:
+      # Mount the MCP executable with all its dependencies
+      - /Users/havivrosh/work/SQL-AI-samples/MssqlMcp/dotnet/MssqlMcp/bin/Release/net9.0/linux-x64:/app/mcp:ro
+    restart: unless-stopped
+    networks:
+      - mcp-network
+    depends_on:
+      - sqlserver
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "80:5173"
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - mcp-network
+
+  # SQL Server for production
+  sqlserver:
+    build:
+      context: .
+      dockerfile: Dockerfile.sqlserver
+    container_name: mcp-sqlserver-prod
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=YourStrong!Passw0rd
+      - MSSQL_PID=Developer
+    ports:
+      - "1433:1433"  
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+    networks:
+      - mcp-network
+    restart: unless-stopped
+
+networks:
+  mcp-network:
+    driver: bridge
+
+volumes:
+  sqlserver_data:

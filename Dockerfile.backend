@@ -1,0 +1,36 @@
+# Backend Dockerfile
+FROM node:18-slim
+
+WORKDIR /app
+
+# Install system dependencies required by MssqlMcp
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    libicu72 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy package files
+COPY package*.json ./
+RUN npm install
+
+# Copy source code and build
+COPY tsconfig.json ./
+COPY src ./src
+
+# Build the TypeScript application
+RUN npm run build
+
+# The MCP executable will be mounted as a volume in docker-compose
+# Create a placeholder directory for the executable
+RUN mkdir -p /usr/local/bin
+
+# Expose port
+EXPOSE 3000
+
+# Set environment variables
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV MCP_SQL_COMMAND="/usr/local/bin/MssqlMcp"
+
+# Start the server
+CMD ["node", "dist/server.js"]
