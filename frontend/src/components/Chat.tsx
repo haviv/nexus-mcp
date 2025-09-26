@@ -9,8 +9,8 @@ export default function Chat() {
         transport: new DefaultChatTransport({
             api: 'http://localhost:3000/mcp-nexus/chat',
             headers: () => {
-                const token = localStorage.getItem('token');
-                return token ? { Authorization: `Bearer ${token}` } : {};
+                const token = localStorage.getItem('jwt_token');
+                return token ? { Authorization: `Bearer ${token}` } : { Authorization: '' };
             },
         }),
     });
