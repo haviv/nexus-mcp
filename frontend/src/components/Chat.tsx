@@ -7,7 +7,7 @@ import ChatInput from './ChatInput';
 export default function Chat() {
     const { error, status, sendMessage, messages, regenerate, stop } = useChat({
         transport: new DefaultChatTransport({
-            api: 'http://localhost:3000/mcp-nexus/chat',
+            api: import.meta.env.VITE_API_URL || 'http://localhost:4000/mcp-nexus/chat',
             headers: () => {
                 const token = localStorage.getItem('jwt_token');
                 return token ? { Authorization: `Bearer ${token}` } : { Authorization: '' };

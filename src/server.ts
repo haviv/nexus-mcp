@@ -14,7 +14,7 @@ import 'dotenv/config';
 import { mcpConfig } from './config/mcp-config.js';
 import { systemPrompts } from './config/system-prompts.js';
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 4000;
 
 // Log MCP configuration at startup
 console.log('=== MCP CONFIGURATION ===');
@@ -57,6 +57,9 @@ createServer(async (req, res) => {
                         res.end(JSON.stringify({ error: 'Invalid credentials' }));
                         return;
                     }
+                    console.log('adminHash', adminHash);
+                    console.log('password', password);
+                    console.log('bcrypt:', bcrypt.compareSync(password || '', adminHash));
                     if (!adminHash || !bcrypt.compareSync(password || '', adminHash)) {
                         res.writeHead(401, { 'Content-Type': 'application/json' });
                         res.end(JSON.stringify({ error: 'Invalid credentials' }));
