@@ -10,11 +10,42 @@ import {
 import { createServer } from 'http';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import fs from 'fs';
+import path from 'path';
 import 'dotenv/config';
 import { mcpConfig } from './config/mcp-config.js';
 import { systemPrompts } from './config/system-prompts.js';
 
 const PORT = process.env.PORT || 5000;
+
+// Logging function for user prompts
+function logUserPrompt(messages: any[], timestamp: string = new Date().toISOString()) {
+    try {
+        const logsDir = '/app/logs';
+        const logFile = path.join(logsDir, `user-prompts-${new Date().toISOString().split('T')[0]}.log`);
+
+        // Ensure logs directory exists
+        if (!fs.existsSync(logsDir)) {
+            fs.mkdirSync(logsDir, { recursive: true });
+        }
+
+        // Extract user messages
+        const userMessages = messages.filter((msg: any) => msg.role === 'user');
+        const logEntry = {
+            timestamp,
+            userMessages: userMessages.map((msg: any) => ({
+                content: msg.content || (msg.parts ? msg.parts.map((p: any) => p.text).join('') : ''),
+                timestamp: msg.timestamp || timestamp
+            }))
+        };
+
+        // Append to log file
+        fs.appendFileSync(logFile, JSON.stringify(logEntry, null, 2) + '\n---\n');
+        console.log(`📝 Logged user prompt to: ${logFile}`);
+    } catch (error) {
+        console.error('Error logging user prompt:', error);
+    }
+}
 
 // Log all environment variables for debugging
 console.log('=== ALL ENVIRONMENT VARIABLES ===');
@@ -28,7 +59,7 @@ console.log('================================\n');
 // Log MCP configuration at startup
 console.log('=== MCP CONFIGURATION ===');
 console.log('MCP_SQL_COMMAND:', process.env.MCP_SQL_COMMAND || mcpConfig.mssql.command);
-console.log('MCP_CONNECTION_STRING:', process.env.MCP_CONNECTION_STRING ? '***SET***' : 'NOT SET');
+console.log('MCP_CONNECTION_STRING:', process.env.MCP_CONNECTION_STRING);
 console.log('MCP_NEXUS_URL:', process.env.MCP_NEXUS_URL || mcpConfig.nexus.url);
 console.log('MAX_STEPS:', mcpConfig.settings.maxSteps);
 console.log('========================\n');
@@ -123,6 +154,9 @@ createServer(async (req, res) => {
                 req.on('end', async () => {
                     try {
                         const { messages } = JSON.parse(body);
+
+                        // Log user prompts to file
+                        logUserPrompt(messages);
 
                         // Set up MCP client for MSSQL
                         const mssqlStdioTransport = new StdioClientTransport({
