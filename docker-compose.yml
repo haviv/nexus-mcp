@@ -11,7 +11,8 @@ services:
     volumes:
       # Mount the .env file
       # Mount the logs directory for persistent logging
-      - ./logs:/app/logs      - ./.env:/app/.env:ro
+      - ./logs:/app/logs      
+      - ./.env:/app/.env:ro
       # Mount the MCP executable with all its dependencies
       - /home/kpisystemuser/work/nexus-mcp/bin:/app/mcp:ro
     restart: unless-stopped
