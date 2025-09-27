@@ -165,6 +165,10 @@ createServer(async (req, res) => {
                             env: mcpConfig.mssql.env,
                         });
 
+                        console.log("Created MCP client for MSSQL with command:", mcpConfig.mssql.command);
+                        console.log("MCP client environment:", mcpConfig.mssql.env);
+                        console.log("MCP client args:", mcpConfig.mssql.args);
+
                         const mssqlMcpClient = await experimental_createMCPClient({
                             transport: mssqlStdioTransport,
                         });
