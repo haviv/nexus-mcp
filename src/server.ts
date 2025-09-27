@@ -114,7 +114,7 @@ createServer(async (req, res) => {
                         res.end(JSON.stringify({ error: 'Invalid credentials' }));
                         return;
                     }
-                    const token = jwt.sign({ sub: username, role: 'admin' }, process.env.JWT_SECRET || 'dev-secret', { expiresIn: '5m' });
+                    const token = jwt.sign({ sub: username, role: 'admin' }, process.env.JWT_SECRET || 'dev-secret', { expiresIn: '7d' });
                     res.writeHead(200, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ token }));
                 } catch (e) {
