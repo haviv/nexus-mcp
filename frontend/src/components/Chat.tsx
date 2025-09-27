@@ -1,13 +1,11 @@
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Streamdown } from 'streamdown';
 import ChatInput from './ChatInput';
 
 export default function Chat() {
-    const navigate = useNavigate();
     const { logout } = useAuth();
     const { error, status, sendMessage, messages, regenerate, stop } = useChat({
         transport: new DefaultChatTransport({
