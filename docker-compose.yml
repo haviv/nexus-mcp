@@ -6,8 +6,11 @@ services:
     platform: linux/amd64
     ports:
       - "5000:5000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       - NODE_ENV=production
+      - MCP_CONNECTION_STRING=Server=host.docker.internal,1433;Database=YourDatabase;User Id=YourUser;Password=YourPassword;TrustServerCertificate=true;
     volumes:
       # Mount the .env file
       # Mount the logs directory for persistent logging
