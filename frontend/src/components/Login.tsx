@@ -23,6 +23,7 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
             localStorage.setItem('jwt_token', token);
             onSuccess();
         } catch (e) {
+            console.error(e);
             setError('Network error');
         }
     };
