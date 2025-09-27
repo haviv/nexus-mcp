@@ -9,7 +9,7 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
         e.preventDefault();
         setError(null);
         try {
-            const res = await fetch(import.meta.env.VITE_API_URL?.replace('/mcp-nexus/chat', '/auth/login') || 'http://localhost:4000/auth/login', {
+            const res = await fetch(import.meta.env.VITE_API_URL?.replace('/mcp-nexus/chat', '/auth/login') || '/auth/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, password }),
@@ -20,7 +20,7 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
                 return;
             }
             const { token } = await res.json();
-            localStorage.setItem('token', token);
+            localStorage.setItem('jwt_token', token);
             onSuccess();
         } catch (e) {
             setError('Network error');
