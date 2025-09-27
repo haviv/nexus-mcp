@@ -1,10 +1,14 @@
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { Streamdown } from 'streamdown';
 import ChatInput from './ChatInput';
 
 export default function Chat() {
+    const navigate = useNavigate();
+    const { logout } = useAuth();
     const { error, status, sendMessage, messages, regenerate, stop } = useChat({
         transport: new DefaultChatTransport({
             api: import.meta.env.VITE_API_URL || '/mcp-nexus/chat',
@@ -14,6 +18,26 @@ export default function Chat() {
             },
         }),
     });
+
+    // Handle token expiration and logout
+    const handleLogout = () => {
+        logout(); // This will update the auth state and trigger redirect
+    };
+
+    useEffect(() => {
+        if (error) {
+            console.log('Chat error:', error);
+            // Check if it's a 401 error (unauthorized) which indicates token expiration
+            if (error.message && (
+                error.message.includes('Token expired or invalid') ||
+                error.message.includes('Unauthorized') ||
+                error.message.includes('401')
+            )) {
+                console.log('Token expired or unauthorized, redirecting to login');
+                logout(); // This will update the auth state and trigger redirect
+            }
+        }
+    }, [error]);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const chatInputRef = useRef<HTMLInputElement>(null);
@@ -55,12 +79,35 @@ export default function Chat() {
             {/* Header */}
             <div className="border-b border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
                 <div className="max-w-4xl mx-auto px-4 py-4">
-                    <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-                        GRC Assistant
-                    </h1>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Governance, Risk & Compliance Database Assistant
-                    </p>
+                    <div className="flex justify-between items-center">
+                        <div>
+                            <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                                GRC Assistant
+                            </h1>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                                Governance, Risk & Compliance Database Assistant
+                            </p>
+                        </div>
+                        <div className="flex space-x-2">
+                            <button
+                                onClick={handleLogout}
+                                className="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                            >
+                                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                                </svg>
+                                Logout
+                            </button>
+                            <button
+                                onClick={() => {
+                                    logout(); // This will update the auth state and trigger redirect
+                                }}
+                                className="inline-flex items-center px-3 py-2 border border-red-300 dark:border-red-600 rounded-lg text-sm font-medium text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
+                            >
+                                Test Login
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
 

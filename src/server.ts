@@ -114,7 +114,7 @@ createServer(async (req, res) => {
                         res.end(JSON.stringify({ error: 'Invalid credentials' }));
                         return;
                     }
-                    const token = jwt.sign({ sub: username, role: 'admin' }, process.env.JWT_SECRET || 'dev-secret', { expiresIn: '8h' });
+                    const token = jwt.sign({ sub: username, role: 'admin' }, process.env.JWT_SECRET || 'dev-secret', { expiresIn: '5m' });
                     res.writeHead(200, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ token }));
                 } catch (e) {
@@ -140,9 +140,13 @@ createServer(async (req, res) => {
                     : '';
                 try {
                     jwt.verify(token, process.env.JWT_SECRET || 'dev-secret');
-                } catch {
+                } catch (error) {
                     res.writeHead(401, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ error: 'Unauthorized' }));
+                    res.end(JSON.stringify({
+                        error: 'Token expired or invalid',
+                        code: 'TOKEN_EXPIRED',
+                        redirectToLogin: true
+                    }));
                     return;
                 }
                 // Parse request body

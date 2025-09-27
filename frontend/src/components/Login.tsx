@@ -20,6 +20,8 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
                 return;
             }
             const { token } = await res.json();
+            // Clear any existing token and set new one
+            localStorage.removeItem('jwt_token');
             localStorage.setItem('jwt_token', token);
             onSuccess();
         } catch (e) {
