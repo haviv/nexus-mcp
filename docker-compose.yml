@@ -12,11 +12,10 @@ services:
       - NODE_ENV=production
       - PORT=5000
       - MCP_SQL_COMMAND=/app/mcp/MssqlMcp
-      - MCP_CONNECTION_STRING=Server=host.docker.internal,1433;Database=MCPNexus;User Id=sa;Password=YourStrong!Passw0rd;TrustServerCertificate=true;
       - MCP_NEXUS_URL=http://backend:5000/mcp-nexus/server
     volumes:
       # Mount the MCP executable with all its dependencies
-      - /Users/havivrosh/work/SQL-AI-samples/MssqlMcp/dotnet/MssqlMcp/bin/Release/net9.0/linux-x64:/app/mcp:ro
+      - /home/kpisystemuser/work/nexus-mcp/bin:/app/mcp:ro
     restart: unless-stopped
     networks:
       - mcp-network
