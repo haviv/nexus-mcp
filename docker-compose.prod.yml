@@ -5,15 +5,15 @@ services:
       dockerfile: Dockerfile.backend
     platform: linux/amd64
     ports:
-      - "4000:4000"
+      - "5000:5000"
     env_file:
       - .env
     environment:
       - NODE_ENV=production
-      - PORT=4000
+      - PORT=5000
       - MCP_SQL_COMMAND=/app/mcp/MssqlMcp
       - MCP_CONNECTION_STRING=Server=sqlserver,1433;Database=MCPNexus;User Id=sa;Password=YourStrong!Passw0rd;TrustServerCertificate=true;
-      - MCP_NEXUS_URL=http://backend:4000/mcp-nexus/server
+      - MCP_NEXUS_URL=http://backend:5000/mcp-nexus/server
     volumes:
       # Mount the MCP executable with all its dependencies
       - /Users/havivrosh/work/SQL-AI-samples/MssqlMcp/dotnet/MssqlMcp/bin/Release/net9.0/linux-x64:/app/mcp:ro
@@ -23,20 +23,18 @@ services:
     depends_on:
       - sqlserver
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
 
-  frontend:
+  # Nginx reverse proxy with built-in frontend
+  nginx:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: Dockerfile.nginx
     ports:
-      - "80:5173"
-    environment:
-      - NODE_ENV=production
-      - VITE_API_URL=http://localhost:4000/mcp-nexus/chat
+      - "80:80"
     depends_on:
       backend:
         condition: service_healthy

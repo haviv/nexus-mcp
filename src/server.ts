@@ -14,7 +14,7 @@ import 'dotenv/config';
 import { mcpConfig } from './config/mcp-config.js';
 import { systemPrompts } from './config/system-prompts.js';
 
-const PORT = process.env.PORT || 4000;
+const PORT = process.env.PORT || 5000;
 
 // Log MCP configuration at startup
 console.log('=== MCP CONFIGURATION ===');

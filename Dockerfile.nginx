@@ -1,0 +1,31 @@
+# Multi-stage build: Build frontend first, then serve with nginx
+FROM node:18-alpine AS frontend-builder
+
+WORKDIR /app
+
+# Copy frontend package files
+COPY frontend/package*.json ./
+RUN npm ci
+
+# Copy frontend source
+COPY frontend/ ./
+
+# Set environment variables for build
+ENV NODE_ENV=production
+ENV VITE_API_URL=/mcp-nexus/chat
+
+# Build the frontend
+RUN npm run build
+
+# Final stage: nginx
+FROM nginx:alpine
+
+# Copy custom nginx configuration
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Copy built frontend from the builder stage
+COPY --from=frontend-builder /app/dist /usr/share/nginx/html
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]

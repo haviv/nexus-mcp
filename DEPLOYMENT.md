@@ -8,8 +8,8 @@ This document explains how to configure the MCP Nexus application for different 
 
 ```bash
 # Server Configuration
-PORT=4000
-MCP_NEXUS_URL=http://localhost:4000/mcp-nexus/server
+PORT=5000
+MCP_NEXUS_URL=http://localhost:5000/mcp-nexus/server
 
 # Admin User Configuration
 ADMIN_USERNAME=admin
@@ -23,9 +23,9 @@ OPENAI_API_KEY=your_openai_api_key_here
 ### Frontend (frontend/.env)
 
 #### Local Development
-When running frontend on port 5173 and backend on port 4000:
+When running frontend on port 5173 and backend on port 5000:
 ```bash
-VITE_API_URL=http://localhost:4000/mcp-nexus/chat
+VITE_API_URL=http://localhost:5000/mcp-nexus/chat
 ```
 
 #### Production - Same Domain
@@ -43,9 +43,9 @@ VITE_API_URL=https://your-backend-domain.com/mcp-nexus/chat
 ## Deployment Scenarios
 
 ### 1. Local Development
-- Backend: `http://localhost:4000`
+- Backend: `http://localhost:5000`
 - Frontend: `http://localhost:5173`
-- Frontend .env: `VITE_API_URL=http://localhost:4000/mcp-nexus/chat`
+- Frontend .env: `VITE_API_URL=http://localhost:5000/mcp-nexus/chat`
 
 ### 2. Production with Reverse Proxy
 - Both frontend and backend served from same domain
@@ -57,7 +57,7 @@ location / {
 }
 
 location /mcp-nexus/ {
-    proxy_pass http://localhost:4000;
+    proxy_pass http://localhost:5000;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
 }
@@ -75,16 +75,16 @@ location /mcp-nexus/ {
 services:
   backend:
     ports:
-      - "4000:4000"
+      - "5000:5000"
     environment:
-      - PORT=4000
-      - MCP_NEXUS_URL=http://backend:4000/mcp-nexus/server
+      - PORT=5000
+      - MCP_NEXUS_URL=http://backend:5000/mcp-nexus/server
   
   frontend:
     ports:
       - "5173:5173"
     environment:
-      - VITE_API_URL=http://localhost:4000/mcp-nexus/chat
+      - VITE_API_URL=http://localhost:5000/mcp-nexus/chat
 ```
 
 ### Production (docker-compose.prod.yml)
@@ -92,16 +92,16 @@ services:
 services:
   backend:
     ports:
-      - "4000:4000"
+      - "5000:5000"
     environment:
-      - PORT=4000
-      - MCP_NEXUS_URL=http://backend:4000/mcp-nexus/server
+      - PORT=5000
+      - MCP_NEXUS_URL=http://backend:5000/mcp-nexus/server
   
   frontend:
     ports:
       - "80:5173"
     environment:
-      - VITE_API_URL=http://localhost:4000/mcp-nexus/chat
+      - VITE_API_URL=http://localhost:5000/mcp-nexus/chat
 ```
 
 ## Testing
@@ -110,15 +110,15 @@ Test the configuration by checking these endpoints:
 
 ```bash
 # Health check
-curl http://localhost:4000/health
+curl http://localhost:5000/health
 
 # Auth endpoint (should return 401 without valid credentials)
-curl -X POST http://localhost:4000/auth/login \
+curl -X POST http://localhost:5000/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username":"test","password":"test"}'
 
 # MCP server endpoint
-curl -X POST http://localhost:4000/mcp-nexus/server \
+curl -X POST http://localhost:5000/mcp-nexus/server \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","method":"ping","id":1}'
 ```
