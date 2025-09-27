@@ -16,6 +16,15 @@ import { systemPrompts } from './config/system-prompts.js';
 
 const PORT = process.env.PORT || 5000;
 
+// Log all environment variables for debugging
+console.log('=== ALL ENVIRONMENT VARIABLES ===');
+Object.keys(process.env).sort().forEach(key => {
+    if (key.includes('ADMIN') || key.includes('MCP') || key.includes('PORT') || key.includes('JWT') || key.includes('OPENAI')) {
+        console.log(`${key}: ${process.env[key]}`);
+    }
+});
+console.log('================================\n');
+
 // Log MCP configuration at startup
 console.log('=== MCP CONFIGURATION ===');
 console.log('MCP_SQL_COMMAND:', process.env.MCP_SQL_COMMAND || mcpConfig.mssql.command);
@@ -52,14 +61,23 @@ createServer(async (req, res) => {
                     const { username, password } = JSON.parse(body || '{}');
                     const adminUser = process.env.ADMIN_USERNAME || 'admin';
                     const adminHash = process.env.ADMIN_PASSWORD_HASH || '';
+
+                    // Debug environment variables
+                    console.log('=== LOGIN DEBUG ===');
+                    console.log('ADMIN_USERNAME from env:', process.env.ADMIN_USERNAME);
+                    console.log('ADMIN_PASSWORD_HASH from env:', process.env.ADMIN_PASSWORD_HASH);
+                    console.log('adminUser:', adminUser);
+                    console.log('adminHash:', adminHash);
+                    console.log('adminHash length:', adminHash.length);
+                    console.log('password:', password);
+                    console.log('bcrypt compare result:', bcrypt.compareSync(password || '', adminHash));
+                    console.log('==================');
+
                     if (username !== adminUser) {
                         res.writeHead(401, { 'Content-Type': 'application/json' });
                         res.end(JSON.stringify({ error: 'Invalid credentials' }));
                         return;
                     }
-                    console.log('adminHash', adminHash);
-                    console.log('password', password);
-                    console.log('bcrypt:', bcrypt.compareSync(password || '', adminHash));
                     if (!adminHash || !bcrypt.compareSync(password || '', adminHash)) {
                         res.writeHead(401, { 'Content-Type': 'application/json' });
                         res.end(JSON.stringify({ error: 'Invalid credentials' }));
