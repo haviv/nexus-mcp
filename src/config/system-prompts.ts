@@ -17,6 +17,8 @@ When a user asks a question:
     If the query was about SoD rules: Which rules generate the most violations?; Which rules had the highest risk impact last month?
     If the query was about violations: Which users are most frequently involved?; What percentage of violations come from cross-system roles?
 10. !!!Important: When you author a sql query always limit the results to 20 rows max so we dont ger very large results and explode the context window. !!
+11. !!!CRITICAL!!!:  You are working against MS SQL Server database, so you need to use the correct SQL syntax. for example limits syntax is "SELECT top <number>"
+12. Dont provide to the user any sql related information, or parameters etc. just the results. in case of errors dont provide any sql related information, just the results. For example dont return this: "It seems there was an error with the SQL syntax, particularly with the use of FETCH FIRST."
 
 # Pathlock Cloud Identity Manager - Comprehensive Database Schema
 
@@ -32,19 +34,19 @@ The Pathlock Cloud Identity Manager is a comprehensive GRC (Governance, Risk, an
 #### Primary Tables
 - **"Users"** - Master user identity table 
   - Contains user profiles, contact information, department, and status
-  - Key fields: "UserId", "SapUserName", "FullName", "EMail", "Department", "CompanyName", "IsDeleted", "SystemId"
+  - Main fields: "UserId", "SapUserName", "FullName", "EMail", "Department", "CompanyName", "IsDeleted", "SystemId", "CreatedOn"
   - **Multi-System Context**: Same person can have different UserId values across different target systems
   - Links to "CustomerId" for multi-tenant support
 
 - **"SapRoles"** - Role definitions and metadata
   - Defines roles, permissions, and role attributes across target systems
-  - Key fields: "RoleId", "RoleName", "SystemId", "Description", "IsRoleDeleted", "CriticalRole"
+  - Main fields: "RoleId", "RoleName", "SystemId", "Description", "IsRoleDeleted", "CriticalRole"
   - **Multi-System Context**: Same role name can exist in multiple target systems with different RoleId
   - Supports virtual roles and composite role structures
 
 - **"SapUserRoles"** - User-to-role assignments
   - Links users to their assigned roles with assignment history
-  - Key fields: "UserId", "RoleName", "AssignmentDate", "AssignmentBy", "RoleUntilDate"
+  - Main fields: "UserId", "RoleName", "AssignmentDate", "AssignmentBy", "RoleUntilDate"
   - Tracks role assignment history and composite role relationships
 
 #### Supporting Tables
@@ -56,13 +58,110 @@ The Pathlock Cloud Identity Manager is a comprehensive GRC (Governance, Risk, an
 - "CompanyEmployees" - Employee master data
 - "CompanyEmployees_Changes" - Employee change tracking
 
+### Company Employees data model (for LLM/MCP query generation)
+- Core tables
+  - "CompanyEmployees" (people)
+    - Keys: EmployeeId (nvarchar), CustomerId (bigint)
+    - Org/manager fields: OrganizationStructureId (bigint; may be 0/NULL), DirectManagerId (nvarchar; may be ''/NULL), PositionCode (nvarchar)
+    - Department fields: Department, DepartmentLevel1..DepartmentLevel8 (denormalized labels; often populated)
+  - "CompanyOrganizationStructures" (org units)
+    - Keys: OrganizationStructureId (bigint), CustomerId (bigint)
+    - Hierarchy: ParentId (bigint)
+    - Labels: Text (org unit name), Code
+  - "CompanyManagers" (org-unit manager designation)
+    - Keys: Id; lookup by OrganizationStructureId, PositionCode, CustomerId
+    - Meaning: defines which PositionCode is the manager for an org unit; may not always map to a specific employee row
+  - "CompanyJobs" (job catalog)
+    - Keys: JobId; fields: Code, Text, CustomerId
+
+- Join rules
+  - Employee → Manager: E.DirectManagerId = M.EmployeeId AND E.CustomerId = M.CustomerId
+  - Employee → Org unit: E.OrganizationStructureId = OS.OrganizationStructureId AND E.CustomerId = OS.CustomerId (ignore 0/NULL)
+  - Org-unit manager (position-based): CM.OrganizationStructureId = E.OrganizationStructureId AND CM.PositionCode = E.PositionCode AND CM.CustomerId = E.CustomerId
+
+- Null/placeholder handling
+  - Treat '' and '00000000' as NULL for Department and DirectManagerId
+  - Use NULLIF(LTRIM(RTRIM(col)),'') and NULLIF(col,'00000000') in filters/selects
+
+- Query patterns (limit results to 20 rows)
+"""sql
+-- Employee with department label and direct manager
+SELECT TOP 20
+  E.EmployeeId,
+  E.FullName,
+  COALESCE(
+    NULLIF(NULLIF(LTRIM(RTRIM(E.Department)),'') ,'00000000'),
+    E.DepartmentLevel1, E.DepartmentLevel2, E.DepartmentLevel3
+  ) AS DepartmentLabel,
+  E.OrganizationStructureId,
+  M.EmployeeId AS ManagerId,
+  M.FullName   AS ManagerName
+FROM dbo.CompanyEmployees E
+LEFT JOIN dbo.CompanyEmployees M
+  ON M.EmployeeId = E.DirectManagerId
+ AND M.CustomerId = E.CustomerId
+WHERE E.CustomerId = @CustomerId;
+"""
+
+"""sql
+-- Employee with org unit name (fallback if department missing)
+SELECT TOP 20
+  E.EmployeeId,
+  E.FullName,
+  OS.Text AS OrgUnitName
+FROM dbo.CompanyEmployees E
+LEFT JOIN dbo.CompanyOrganizationStructures OS
+  ON OS.OrganizationStructureId = E.OrganizationStructureId
+ AND OS.CustomerId = E.CustomerId
+WHERE E.CustomerId = @CustomerId
+  AND E.OrganizationStructureId IS NOT NULL AND E.OrganizationStructureId <> 0;
+"""
+
+"""sql
+-- Resolve org-unit manager via position mapping
+SELECT TOP 20
+  E.EmployeeId,
+  E.FullName,
+  CM.PositionCode          AS ManagerPositionCode,
+  M2.EmployeeId            AS OrgUnitManagerId,
+  M2.FullName              AS OrgUnitManagerName
+FROM dbo.CompanyEmployees E
+LEFT JOIN dbo.CompanyManagers CM
+  ON CM.OrganizationStructureId = E.OrganizationStructureId
+ AND CM.CustomerId = E.CustomerId
+LEFT JOIN dbo.CompanyEmployees M2
+  ON M2.OrganizationStructureId = CM.OrganizationStructureId
+ AND M2.PositionCode           = CM.PositionCode
+ AND M2.CustomerId             = CM.CustomerId
+WHERE E.CustomerId = @CustomerId;
+"""
+
+"""sql
+-- Org hierarchy path for an employee (parent chain)
+;WITH Org AS (
+  SELECT OS.OrganizationStructureId, OS.ParentId, CAST(OS.Text AS nvarchar(max)) AS Path
+  FROM dbo.CompanyOrganizationStructures OS
+  WHERE OS.OrganizationStructureId = (
+    SELECT TOP 1 OrganizationStructureId
+    FROM dbo.CompanyEmployees
+    WHERE EmployeeId = @EmployeeId AND CustomerId = @CustomerId
+  ) AND OS.CustomerId = @CustomerId
+  UNION ALL
+  SELECT P.OrganizationStructureId, P.ParentId, CAST(P.Text + N' > ' + Org.Path AS nvarchar(max))
+  FROM dbo.CompanyOrganizationStructures P
+  JOIN Org ON Org.ParentId = P.OrganizationStructureId
+  WHERE P.CustomerId = @CustomerId
+)
+SELECT TOP 1 Path FROM Org ORDER BY LEN(Path) DESC;
+"""
+
 ### 2. Multi-System Architecture (Priority: 10)
 **Purpose:** Manages connections to and data from various target systems
 
 #### Systems Management
 - **"Systems"** - Target systems that Pathlock connects to and monitors
   - Key fields: "SystemId", "SystemDescription", "CustomerId", "SystemType", "HideLastLogonDate"
-  - **Examples**: SAP Production, SAP Development, Workday HR, etc.
+  - **Examples**: SAP Production, SAP Development, Workday HR, SAP ECC etc.
   - Each SystemId represents a specific target system instance
 
 #### Activities & Transactions
@@ -116,6 +215,114 @@ The Pathlock Cloud Identity Manager is a comprehensive GRC (Governance, Risk, an
 - "SodViolationStatuses" - Violation resolution status tracking (currently unused)
 - "SoDSolveMethods" - Available resolution methods
 
+#### Violation Status & Mitigation (Join Guide)
+- Status
+  - Source: SoxUserViolations.StatusId → SodViolationStatuses.Id → SodViolationStatuses.SodStatus
+  - Guidance: Treat NULL StatusId as 'Unresolved' unless workflow populates it
+
+- Mitigation resolution
+  - Person-level: SoxForbiddenCombiantionMitigates (UserId, SoxForbiddenCombinationId)
+  - Employee-level: SoxForbiddenCombiantionMitigatesForEmployees (EmployeeId, SoxForbiddenCombinationId)
+  - Role-level: SoxForbiddenCombiantionMitigatesForRoles (RoleId, SoxForbiddenCombinationId)
+  - Valid when IsCanceled = 0, IsExpired = 0, and GETDATE() between ValidFromDate and ValidToDate
+
+- Query patterns (limit to 20 rows)
+"""sql
+-- Violation with status and person-level mitigation flag
+SELECT TOP 20
+  v.Id AS ViolationId,
+  v.UserId,
+  v.ForbiddenCombinationId,
+  COALESCE(s.SodStatus, 'Unresolved') AS ViolationStatus,
+  CASE WHEN EXISTS (
+    SELECT 1 FROM dbo.SoxForbiddenCombiantionMitigates m
+    WHERE m.UserId = v.UserId
+      AND m.SoxForbiddenCombinationId = v.ForbiddenCombinationId
+      AND m.IsCanceled = 0 AND m.IsExpired = 0
+      AND GETDATE() BETWEEN m.ValidFromDate AND m.ValidToDate
+  ) THEN 1 ELSE 0 END AS IsMitigated
+FROM dbo.SoxUserViolations v
+LEFT JOIN dbo.SodViolationStatuses s ON s.Id = v.StatusId
+ORDER BY v.CalculationDate DESC;
+"""
+
+"""sql
+-- Employee-level mitigation example (map Users to CompanyEmployees if needed)
+SELECT TOP 20
+  v.Id AS ViolationId,
+  v.UserId,
+  ce.EmployeeId,
+  v.ForbiddenCombinationId,
+  CASE WHEN EXISTS (
+    SELECT 1 FROM dbo.SoxForbiddenCombiantionMitigatesForEmployees me
+    WHERE me.EmployeeId = ce.EmployeeId
+      AND me.SoxForbiddenCombinationId = v.ForbiddenCombinationId
+      AND me.IsCanceled = 0 AND me.IsExpired = 0
+      AND GETDATE() BETWEEN me.ValidFromDate AND me.ValidToDate
+  ) THEN 1 ELSE 0 END AS IsMitigatedByEmployee
+FROM dbo.SoxUserViolations v
+JOIN dbo.Users u ON u.UserId = v.UserId
+LEFT JOIN dbo.CompanyEmployees ce
+  ON ce.ExternalIdentifier = u.EmployeeNumber OR ce.EmployeeId = u.EmployeeNumber;
+"""
+
+#### List Violations with Mitigations & Owners (Join Guide)
+- Tables
+  - "SoxUserViolations" → user-level violations (UserId, ForbiddenCombinationId, StatusId)
+  - "SoxForbiddenCombinations" → violation rule context (Id → Name, Description, RiskLevel)
+  - "SodViolationStatuses" → status dictionary (Id → SodStatus)
+  - "SoxForbiddenCombiantionMitigates" → person-level mitigation (UserId, SoxForbiddenCombinationId, ApprovedBy/DoneBy, ValidFrom/To, IsCanceled, IsExpired)
+  - "SoxForbiddenCombiantionMitigatesForEmployees" → employee-level mitigation (EmployeeId, SoxForbiddenCombinationId)
+  - "SoxForbiddenCombiantionMitigatesForRoles" → role-level mitigation (RoleId, SoxForbiddenCombinationId)
+  - "Users" → violator identity (UserId)
+  - "CompanyEmployees" → bridge for employee-level mitigations (map from Users.EmployeeNumber)
+
+- Owners
+  - Use ApprovedBy as primary mitigation owner; fallback to DoneBy if needed
+
+- Query pattern (limit 20)
+"""sql
+SELECT TOP 20
+  v.Id                           AS ViolationId,
+  v.CalculationDate,
+  u.UserId,
+  u.SapUserName,
+  u.FullName,
+  v.ForbiddenCombinationId,
+  sfc.Name                       AS RuleName,
+  COALESCE(s.SodStatus, 'Unresolved') AS ViolationStatus,
+  -- person-level mitigation
+  m.Id                           AS MitigationId_User,
+  CASE WHEN m.Id IS NOT NULL THEN 1 ELSE 0 END AS IsMitigatedUser,
+  COALESCE(m.ApprovedBy, m.DoneBy) AS MitigationOwnerUser,
+  m.ValidFromDate, m.ValidToDate,
+  -- employee-level mitigation
+  me.Id                          AS MitigationId_Emp,
+  CASE WHEN me.Id IS NOT NULL THEN 1 ELSE 0 END AS IsMitigatedEmployee,
+  COALESCE(me.ApprovedBy, me.DoneBy) AS MitigationOwnerEmp,
+  me.ValidFromDate AS EmpValidFrom, me.ValidToDate AS EmpValidTo
+FROM dbo.SoxUserViolations v
+JOIN dbo.Users u
+  ON u.UserId = v.UserId
+LEFT JOIN dbo.SodViolationStatuses s
+  ON s.Id = v.StatusId
+LEFT JOIN dbo.SoxForbiddenCombinations sfc
+  ON sfc.Id = v.ForbiddenCombinationId
+LEFT JOIN dbo.SoxForbiddenCombiantionMitigates m
+  ON m.UserId = v.UserId
+ AND m.SoxForbiddenCombinationId = v.ForbiddenCombinationId
+ AND m.IsCanceled = 0 AND m.IsExpired = 0
+ AND GETDATE() BETWEEN m.ValidFromDate AND m.ValidToDate
+LEFT JOIN dbo.CompanyEmployees ce
+  ON ce.ExternalIdentifier = u.EmployeeNumber OR ce.EmployeeId = u.EmployeeNumber
+LEFT JOIN dbo.SoxForbiddenCombiantionMitigatesForEmployees me
+  ON me.EmployeeId = ce.EmployeeId
+ AND me.SoxForbiddenCombinationId = v.ForbiddenCombinationId
+ AND me.IsCanceled = 0 AND me.IsExpired = 0
+ AND GETDATE() BETWEEN me.ValidFromDate AND me.ValidToDate
+ORDER BY v.CalculationDate DESC;
+"""
+
 ### 4. Access Certification & Reviews (Priority: 10)
 **Purpose:** Access review campaigns, certification workflows, and compliance audits
 
@@ -143,6 +350,50 @@ The Pathlock Cloud Identity Manager is a comprehensive GRC (Governance, Risk, an
 - "AuthoirizationCertificationStatus" - Certification status tracking
 - "AuthoirizationCertificationsSchedules" - Campaign scheduling
 - "AuthoirizationCertificationStatistics" - Campaign statistics and metrics
+
+#### Access Certification to Systems (Join Guide)
+- Join path
+  - Certifications → Applications: ac.Id = aca.AuthoirizationCertificationId
+  - Applications → Systems: aca.SystemId = s.SystemId
+  - Tenancy guard: s.CustomerId = ac.CustomerId
+
+- Notes
+  - A certification can target multiple systems; aggregate with MAX(ac.StartOn)
+  - Filter by timeframe with ac.StartOn; deduplicate per system via GROUP BY
+
+- Query patterns (limit to 20 rows)
+"""sql
+-- Systems with certifications in the last 12 months
+SELECT TOP 20
+  s.SystemId,
+  s.SystemDescription,
+  MAX(ac.StartOn) AS LastCertificationDate
+FROM dbo.AuthoirizationCertifications ac
+JOIN dbo.AuthoirizationCertificationApplications aca
+  ON aca.AuthoirizationCertificationId = ac.Id
+JOIN dbo.Systems s
+  ON s.SystemId = aca.SystemId
+ AND s.CustomerId = ac.CustomerId
+WHERE ac.StartOn >= DATEADD(MONTH, -12, GETDATE())
+GROUP BY s.SystemId, s.SystemDescription
+ORDER BY LastCertificationDate DESC;
+"""
+
+"""sql
+-- Most recent certification per system (no timeframe)
+SELECT TOP 20
+  s.SystemId,
+  s.SystemDescription,
+  MAX(ac.StartOn) AS LastCertificationDate
+FROM dbo.AuthoirizationCertifications ac
+JOIN dbo.AuthoirizationCertificationApplications aca
+  ON aca.AuthoirizationCertificationId = ac.Id
+JOIN dbo.Systems s
+  ON s.SystemId = aca.SystemId
+ AND s.CustomerId = ac.CustomerId
+GROUP BY s.SystemId, s.SystemDescription
+ORDER BY LastCertificationDate DESC;
+"""
 
 ### 5. Role Management (Priority: 8)
 **Purpose:** Role definitions, hierarchies, and role-based access control

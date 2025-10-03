@@ -14,6 +14,6 @@ export const mcpConfig = {
         url: process.env.MCP_NEXUS_URL || 'http://localhost:3000/mcp-nexus/server'
     },
     settings: {
-        maxSteps: 10
+        maxSteps: 20
     }
 };

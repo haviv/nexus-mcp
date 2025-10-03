@@ -18,7 +18,10 @@ import { systemPrompts } from './config/system-prompts.js';
 
 const PORT = process.env.PORT || 5000;
 
-// Logging function for user prompts
+// Track last logged message to prevent duplicates
+let lastLoggedMessage = '';
+
+// Logging function for user prompts - only log the most recent user message
 function logUserPrompt(messages: any[], timestamp: string = new Date().toISOString()) {
     try {
         const logsDir = '/app/logs';
@@ -29,19 +32,37 @@ function logUserPrompt(messages: any[], timestamp: string = new Date().toISOStri
             fs.mkdirSync(logsDir, { recursive: true });
         }
 
-        // Extract user messages
+        // Extract only the most recent user message (the new query)
         const userMessages = messages.filter((msg: any) => msg.role === 'user');
+        const latestUserMessage = userMessages[userMessages.length - 1];
+
+        if (!latestUserMessage) {
+            console.log('No user message found to log');
+            return;
+        }
+
+        const messageContent = latestUserMessage.content || (latestUserMessage.parts ? latestUserMessage.parts.map((p: any) => p.text).join('') : '');
+
+        // Check if this message was already logged to prevent duplicates
+        if (lastLoggedMessage === messageContent) {
+            console.log('📝 Skipping duplicate message log');
+            return;
+        }
+
         const logEntry = {
             timestamp,
-            userMessages: userMessages.map((msg: any) => ({
-                content: msg.content || (msg.parts ? msg.parts.map((p: any) => p.text).join('') : ''),
-                timestamp: msg.timestamp || timestamp
-            }))
+            userMessage: {
+                content: messageContent,
+                timestamp: latestUserMessage.timestamp || timestamp
+            }
         };
+
+        // Update the last logged message
+        lastLoggedMessage = messageContent;
 
         // Append to log file
         fs.appendFileSync(logFile, JSON.stringify(logEntry, null, 2) + '\n---\n');
-        console.log(`📝 Logged user prompt to: ${logFile}`);
+        console.log(`📝 Logged user query: "${logEntry.userMessage.content.substring(0, 50)}..." to: ${logFile}`);
     } catch (error) {
         console.error('Error logging user prompt:', error);
     }
@@ -183,25 +204,46 @@ createServer(async (req, res) => {
                         console.log('=== DEBUGGING CONTEXT LENGTH ===');
                         console.log('Total messages count:', messages.length);
 
-                        // Filter to only user messages (questions) and take the most recent 20
-                        const userMessages = messages.filter((msg: any) => msg.role === 'user');
-                        const messagesToSend = userMessages.slice(-20); // Get last 20 user messages only
+                        // Take the last 20 messages (both user and assistant) but truncate assistant responses
+                        const messagesToSend = messages.slice(-20); // Get last 20 messages total
+
+                        // Truncate assistant responses to avoid context window limits
+                        const processedMessages = messagesToSend.map((message: any) => {
+                            if (message.role === 'assistant') {
+                                // Truncate assistant responses to first 500 characters
+                                const truncatedMessage = { ...message };
+                                if (truncatedMessage.parts && Array.isArray(truncatedMessage.parts)) {
+                                    truncatedMessage.parts = truncatedMessage.parts.map((part: any) => {
+                                        if (part.text && part.text.length > 500) {
+                                            return { ...part, text: part.text.substring(0, 500) + '...[truncated]' };
+                                        }
+                                        return part;
+                                    });
+                                } else if (truncatedMessage.content && truncatedMessage.content.length > 500) {
+                                    truncatedMessage.content = truncatedMessage.content.substring(0, 500) + '...[truncated]';
+                                }
+                                return truncatedMessage;
+                            }
+                            // Keep user messages at full length
+                            return message;
+                        });
 
                         console.log('Total messages received:', messages.length);
-                        console.log('Total user messages:', userMessages.length);
-                        console.log('Sending only user questions (max 20 most recent)');
-                        console.log('User messages to send:', messagesToSend.length);
+                        console.log('Sending last 20 messages (user + assistant, assistant responses truncated)');
+                        console.log('Messages to send:', processedMessages.length);
 
                         let contentSize = 0;
-                        messagesToSend.forEach((message: any) => {
+                        processedMessages.forEach((message: any) => {
                             if (message.parts && Array.isArray(message.parts)) {
                                 message.parts.forEach((part: any) => {
                                     if (part.text) contentSize += part.text.length;
                                 });
+                            } else if (message.content) {
+                                contentSize += message.content.length;
                             }
                         });
 
-                        console.log('User messages size:', contentSize, 'characters');
+                        console.log('Processed messages size:', contentSize, 'characters');
                         console.log('System prompt size:', systemPrompts.grcAssistant.length, 'characters');
                         console.log('Total size:', contentSize + systemPrompts.grcAssistant.length, 'characters');
                         console.log('Estimated tokens:', Math.ceil((contentSize + systemPrompts.grcAssistant.length) / 4));
@@ -215,7 +257,7 @@ createServer(async (req, res) => {
                                 console.log(`STEP RESULTS: ${JSON.stringify(toolResults, null, 2)}`);
                             },
                             system: systemPrompts.grcAssistant,
-                            messages: convertToModelMessages(messagesToSend),
+                            messages: convertToModelMessages(processedMessages),
                             onFinish: async () => {
                                 await mssqlMcpClient.close();
                             },
