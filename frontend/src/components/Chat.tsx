@@ -1,6 +1,6 @@
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Streamdown } from 'streamdown';
 import ChatInput from './ChatInput';
@@ -15,7 +15,23 @@ export default function Chat() {
                 return token ? { Authorization: `Bearer ${token}` } : { Authorization: '' };
             },
         }),
+        onFinish: (message) => {
+            console.log('🏁 Chat finished with message:', message);
+        },
+        onError: (error) => {
+            console.error('❌ Chat error:', error);
+        }
     });
+
+    // Debug logging for all messages changes
+    useEffect(() => {
+        console.log('📬 Messages updated:', {
+            count: messages.length,
+            status,
+            latestMessage: messages[messages.length - 1],
+            allMessages: messages
+        });
+    }, [messages, status]);
 
     // Handle token expiration and logout
     const handleLogout = () => {
@@ -39,6 +55,8 @@ export default function Chat() {
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const chatInputRef = useRef<HTMLInputElement>(null);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+    const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
 
     // Mermaid configuration for dark/light themes
     const mermaidConfig = {
@@ -57,12 +75,29 @@ export default function Chat() {
         },
     };
 
+    // Check if user is at bottom of scroll area
+    const isAtBottom = useCallback(() => {
+        if (!scrollContainerRef.current) return true;
+        const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+        // Consider "at bottom" if within 100px of the bottom
+        return scrollHeight - scrollTop - clientHeight < 100;
+    }, []);
+
+    // Handle scroll events to detect if user scrolled away from bottom
+    const handleScroll = useCallback(() => {
+        if (!scrollContainerRef.current) return;
+        setIsUserScrolledUp(!isAtBottom());
+    }, [isAtBottom]);
+
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
 
     useEffect(() => {
-        scrollToBottom();
+        // Only auto-scroll if user hasn't manually scrolled up
+        if (!isUserScrolledUp) {
+            scrollToBottom();
+        }
 
         // Focus input after response is complete
         if (status === 'ready' && messages.length > 0) {
@@ -70,7 +105,14 @@ export default function Chat() {
                 chatInputRef.current?.focus();
             }, 100);
         }
-    }, [messages, status]);
+    }, [messages, status, isUserScrolledUp]);
+
+    // Reset scroll state when messages are cleared or first message arrives
+    useEffect(() => {
+        if (messages.length <= 1) {
+            setIsUserScrolledUp(false);
+        }
+    }, [messages.length]);
 
     return (
         <div className="flex flex-col h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
@@ -111,7 +153,11 @@ export default function Chat() {
 
             {/* Messages Container */}
             <div className="flex-1 overflow-hidden">
-                <div className="h-full overflow-y-auto">
+                <div 
+                    ref={scrollContainerRef}
+                    className="h-full overflow-y-auto"
+                    onScroll={handleScroll}
+                >
                     <div className="max-w-4xl mx-auto px-4 py-6">
                         {messages.length === 0 && (
                             <div className="text-center py-12">
@@ -130,80 +176,78 @@ export default function Chat() {
                         )}
 
                         <div className="space-y-6">
-                            {messages.map((m: any) => (
-                                <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                    <div className={`flex max-w-[80%] ${m.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-                                        {/* Avatar */}
-                                        <div className={`flex-shrink-0 ${m.role === 'user' ? 'ml-3' : 'mr-3'}`}>
-                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${m.role === 'user'
-                                                ? 'bg-gradient-to-r from-blue-500 to-blue-600'
-                                                : 'bg-gradient-to-r from-purple-500 to-purple-600'
+                            {messages.map((m: any) => {
+                                // Essential debug logging for markdown issues
+                                if (m.role === 'assistant') {
+                                    const extractedContent = m.parts
+                                        ? m.parts
+                                            .map((part: any) => (part.type === 'text' ? part.text : ''))
+                                            .join('')
+                                        : String(m.content || '');
+                                    
+                                    console.log('🎨 AI Message Content:', extractedContent.substring(0, 200) + '...');
+                                }
+
+                                const extractedContent = m.parts
+                                    ? m.parts
+                                        .map((part: any) => (part.type === 'text' ? part.text : ''))
+                                        .join('')
+                                    : String(m.content || '');
+
+                                return (
+                                    <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                        <div className={`flex max-w-[80%] ${m.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                                            {/* Avatar */}
+                                            <div className={`flex-shrink-0 ${m.role === 'user' ? 'ml-3' : 'mr-3'}`}>
+                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${m.role === 'user'
+                                                    ? 'bg-gradient-to-r from-blue-500 to-blue-600'
+                                                    : 'bg-gradient-to-r from-purple-500 to-purple-600'
+                                                    }`}>
+                                                    {m.role === 'user' ? (
+                                                        <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                            <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                                                        </svg>
+                                                    ) : (
+                                                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                                        </svg>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Message Content */}
+                                            <div className={`rounded-2xl px-4 py-3 ${m.role === 'user'
+                                                ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white'
+                                                : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700'
                                                 }`}>
                                                 {m.role === 'user' ? (
-                                                    <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                                        <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                                                    </svg>
+                                                    // For user messages, use simple text rendering
+                                                    <div className="prose prose-sm max-w-none">
+                                                        <pre className="whitespace-pre-wrap font-sans text-white">
+                                                            {extractedContent}
+                                                        </pre>
+                                                    </div>
                                                 ) : (
-                                                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                                    </svg>
+                                                    // For AI messages, use Streamdown for rich formatting
+                                                    <Streamdown
+                                                        mermaidConfig={mermaidConfig}
+                                                        className="streamdown-container prose prose-sm max-w-none dark:prose-invert"
+                                                        shikiTheme={['github-light', 'github-dark']}
+                                                        controls={{
+                                                            table: true,
+                                                            code: true,
+                                                            mermaid: true
+                                                        }}
+                                                        parseIncompleteMarkdown={true}
+                                                    >
+                                                        {extractedContent}
+                                                    </Streamdown>
                                                 )}
                                             </div>
                                         </div>
-
-                                        {/* Message Content */}
-                                        <div className={`rounded-2xl px-4 py-3 ${m.role === 'user'
-                                            ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white'
-                                            : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700'
-                                            }`}>
-                                            {m.role === 'user' ? (
-                                                // For user messages, use simple text rendering
-                                                <div className="prose prose-sm max-w-none">
-                                                    <pre className="whitespace-pre-wrap font-sans text-white">
-                                                        {(m.parts
-                                                            ? m.parts
-                                                                .map((part: any) => (part.type === 'text' ? part.text : ''))
-                                                                .join('')
-                                                            : String(m.content || ''))}
-                                                    </pre>
-                                                </div>
-                                            ) : (
-                                                // For AI messages, use Streamdown for rich formatting
-                                                <Streamdown
-                                                    mermaidConfig={mermaidConfig}
-                                                    className="streamdown-container"
-                                                    shikiTheme={['github-light', 'github-dark']}
-                                                    controls={{
-                                                        table: true,
-                                                        code: true,
-                                                        mermaid: true
-                                                    }}
-                                                    parseIncompleteMarkdown={false}
-                                                    components={{
-                                                        // Custom code block renderer to prevent duplication
-                                                        code: ({ children, className, ...props }: any) => (
-                                                            <code className={className} {...props}>
-                                                                {children}
-                                                            </code>
-                                                        ),
-                                                        pre: ({ children, ...props }: any) => (
-                                                            <pre {...props}>
-                                                                {children}
-                                                            </pre>
-                                                        )
-                                                    }}
-                                                >
-                                                    {(m.parts
-                                                        ? m.parts
-                                                            .map((part: any) => (part.type === 'text' ? part.text : ''))
-                                                            .join('')
-                                                        : String(m.content || ''))}
-                                                </Streamdown>
-                                            )}
-                                        </div>
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
 
                         {/* Loading State */}
@@ -258,6 +302,24 @@ export default function Chat() {
                         <div ref={messagesEndRef} />
                     </div>
                 </div>
+
+                {/* Scroll to bottom button when user scrolled up */}
+                {isUserScrolledUp && (
+                    <div className="absolute bottom-4 right-4">
+                        <button
+                            onClick={() => {
+                                setIsUserScrolledUp(false);
+                                scrollToBottom();
+                            }}
+                            className="flex items-center justify-center w-12 h-12 bg-blue-500 hover:bg-blue-600 text-white rounded-full shadow-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                            title="Scroll to bottom"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                            </svg>
+                        </button>
+                    </div>
+                )}
             </div>
 
             {/* Chat Input */}
