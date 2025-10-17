@@ -9,7 +9,7 @@ export default function WelcomeSection({ onQuestionClick }: WelcomeSectionProps)
 
     const exampleQuestions = [
         "Show me users with privileged access across SAP and Workday.",
-        "Explain our control exceptions and how to fix them.",
+        "Analyze unassigned roles. Which top roles are not used or assigned? Provide top insights.",
         "Show me violation trends by system and department over last six months."
     ];
 
