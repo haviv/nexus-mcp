@@ -8,7 +8,7 @@ export default function WelcomeSection({ onQuestionClick }: WelcomeSectionProps)
     const [hoveredTile, setHoveredTile] = useState<number | null>(null);
 
     const exampleQuestions = [
-        "Show me users with privileged access across SAP and Workday.",
+        "Show me users with privileged access in SAP.",
         "Show my control exceptions that have expired.",
         "Show me violation trends by system and department over last six months."
     ];
