@@ -192,7 +192,7 @@ export default function Chat() {
 
                                             {/* Message Content */}
                                             <div className={`rounded-2xl px-4 py-3 ${m.role === 'user'
-                                                ? 'bg-pathlock-green text-white border-2 border-pathlock-green'
+                                                ? 'bg-pathlock-green text-white'
                                                 : 'bg-white border border-gray-200 shadow-sm'
                                                 }`}>
                                                 {m.role === 'user' ? (

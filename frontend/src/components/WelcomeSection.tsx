@@ -25,12 +25,17 @@ export default function WelcomeSection({ onQuestionClick }: WelcomeSectionProps)
             </div>
 
             {/* Welcome Title */}
-            <h1 className="text-5xl font-bold text-gray-900 mb-4 text-center">
+            <h1 className="text-6xl font-bold text-gray-900 mb-6 text-center">
                 Welcome to Pathlock IQ
             </h1>
 
             {/* Description */}
-            <p className="text-lg text-gray-600 max-w-2xl text-center mb-12 leading-relaxed">
+            <p className="text-xl text-gray-600 max-w-3xl text-center mb-12 leading-relaxed font-medium">
+                Chat with Your Data - Powered by Pathlock AI
+            </p>
+
+            {/* Secondary Description */}
+            <p className="text-lg text-gray-500 max-w-2xl text-center mb-12 leading-relaxed">
                 Ask questions about users, roles, violations, compliance status, and more from your Pathlock database.
             </p>
 
@@ -47,7 +52,7 @@ export default function WelcomeSection({ onQuestionClick }: WelcomeSectionProps)
 
             {/* Try asking section */}
             <div className="w-full max-w-4xl">
-                <h3 className="text-lg font-medium text-gray-600 mb-6 text-center">
+                <h3 className="text-xl font-semibold text-gray-700 mb-8 text-center">
                     Try asking:
                 </h3>
 
@@ -59,9 +64,9 @@ export default function WelcomeSection({ onQuestionClick }: WelcomeSectionProps)
                             onClick={() => onQuestionClick(question)}
                             onMouseEnter={() => setHoveredTile(index)}
                             onMouseLeave={() => setHoveredTile(null)}
-                            className={`pathlock-card p-6 text-left transition-all duration-200 cursor-pointer group border ${hoveredTile === index
-                                ? 'border-pathlock-green/20 shadow-lg transform scale-105'
-                                : 'border-gray-100 hover:border-pathlock-green/10'
+                            className={`pathlock-card p-6 text-left transition-all duration-200 cursor-pointer group ${hoveredTile === index
+                                ? 'shadow-lg transform scale-[1.02] bg-pathlock-green/5 border border-pathlock-green/20'
+                                : 'shadow-sm hover:shadow-md border border-gray-100 hover:border-pathlock-green/15'
                                 }`}
                         >
                             <div className="flex items-start space-x-3">
@@ -78,7 +83,7 @@ export default function WelcomeSection({ onQuestionClick }: WelcomeSectionProps)
                                 </div>
 
                                 {/* Question Text */}
-                                <p className="text-gray-700 text-sm leading-relaxed group-hover:text-pathlock-green transition-colors duration-200">
+                                <p className="text-gray-700 text-base leading-relaxed group-hover:text-pathlock-green transition-colors duration-200 font-medium">
                                     {question}
                                 </p>
                             </div>

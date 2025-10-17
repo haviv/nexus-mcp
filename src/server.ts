@@ -250,7 +250,7 @@ createServer(async (req, res) => {
                         console.log('=== END DEBUG INFO ===\n');
 
                         const result = streamText({
-                            model: openai('gpt-5-mini'),
+                            model: openai('gpt-5'),
                             stopWhen: stepCountIs(mcpConfig.settings.maxSteps),
                             tools,
                             onStepFinish: async ({ toolResults }) => {
