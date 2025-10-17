@@ -124,16 +124,16 @@ export default function Chat() {
         <div className="flex flex-col h-screen bg-white">
             {/* Header */}
             <div className="border-b border-gray-200 bg-white/80 backdrop-blur-sm">
-                <div className="max-w-6xl mx-auto px-6 py-4">
+                <div className="max-w-5xl mx-auto px-4 py-2">
                     <div className="flex justify-between items-center">
-                        <PathlockLogo size="lg" />
+                        <PathlockLogo size="md" />
                         <button
                             onClick={handleLogout}
-                            className="inline-flex items-center px-4 py-2 text-gray-700 hover:text-pathlock-green transition-colors duration-200"
+                            className="inline-flex items-center px-3 py-1 text-sm text-gray-700 hover:text-pathlock-green transition-colors duration-200"
                         >
-                            <span className="mr-2">Logout</span>
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                            <span className="mr-1">Logout</span>
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013 3v1" />
                             </svg>
                         </button>
                     </div>
@@ -147,12 +147,12 @@ export default function Chat() {
                     className="h-full overflow-y-auto"
                     onScroll={handleScroll}
                 >
-                    <div className="max-w-6xl mx-auto px-6 py-6">
+                    <div className="max-w-5xl mx-auto px-4 py-4">
                         {messages.length === 0 && (
                             <WelcomeSection onQuestionClick={handleQuestionClick} />
                         )}
 
-                        <div className="space-y-6">
+                        <div className="space-y-4">
                             {messages.map((m: any) => {
                                 // Essential debug logging for markdown issues
                                 if (m.role === 'assistant') {
@@ -175,13 +175,13 @@ export default function Chat() {
                                     <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                         <div className={`flex max-w-[80%] ${m.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
                                             {/* Avatar */}
-                                            <div className={`flex-shrink-0 ${m.role === 'user' ? 'ml-3' : 'mr-3'}`}>
-                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${m.role === 'user'
+                                            <div className={`flex-shrink-0 ${m.role === 'user' ? 'ml-2' : 'mr-2'}`}>
+                                                <div className={`w-6 h-6 rounded-full flex items-center justify-center ${m.role === 'user'
                                                     ? 'bg-pathlock-green'
                                                     : 'bg-gray-100 border border-gray-200'
                                                     }`}>
                                                     {m.role === 'user' ? (
-                                                        <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                        <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                                                             <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
                                                         </svg>
                                                     ) : (
@@ -191,7 +191,7 @@ export default function Chat() {
                                             </div>
 
                                             {/* Message Content */}
-                                            <div className={`rounded-2xl px-4 py-3 ${m.role === 'user'
+                                            <div className={`rounded-xl px-3 py-2 ${m.role === 'user'
                                                 ? 'bg-pathlock-green text-white'
                                                 : 'bg-white border border-gray-200 shadow-sm'
                                                 }`}>
@@ -227,21 +227,21 @@ export default function Chat() {
 
                         {/* Loading State */}
                         {(status === 'submitted' || status === 'streaming') && (
-                            <div className="flex justify-start mt-6">
+                            <div className="flex justify-start mt-4">
                                 <div className="flex">
-                                    <div className="flex-shrink-0 mr-3">
-                                        <div className="w-8 h-8 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center">
+                                    <div className="flex-shrink-0 mr-2">
+                                        <div className="w-6 h-6 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center">
                                             <PathlockLogo size="sm" showText={false} />
                                         </div>
                                     </div>
-                                    <div className="bg-white border border-gray-200 shadow-sm rounded-2xl px-4 py-3">
-                                        <div className="flex items-center space-x-2">
+                                    <div className="bg-white border border-gray-200 shadow-sm rounded-xl px-3 py-2">
+                                        <div className="flex items-center space-x-1">
                                             <div className="flex space-x-1">
-                                                <div className="w-2 h-2 bg-pathlock-green rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                                                <div className="w-2 h-2 bg-pathlock-green rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                                                <div className="w-2 h-2 bg-pathlock-green rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                                                <div className="w-1.5 h-1.5 bg-pathlock-green rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                                                <div className="w-1.5 h-1.5 bg-pathlock-green rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                                                <div className="w-1.5 h-1.5 bg-pathlock-green rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
                                             </div>
-                                            <span className="text-sm text-gray-600">Thinking...</span>
+                                            <span className="text-xs text-gray-600">Thinking...</span>
                                         </div>
                                     </div>
                                 </div>
@@ -297,7 +297,7 @@ export default function Chat() {
 
             {/* Chat Input */}
             <div className="border-t border-gray-200 bg-white/80 backdrop-blur-sm">
-                <div className="max-w-6xl mx-auto px-6 py-4">
+                <div className="max-w-5xl mx-auto px-4 py-3">
                     <ChatInput
                         ref={chatInputRef}
                         status={status}

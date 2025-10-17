@@ -34,23 +34,23 @@ export default function LoginPage() {
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-white">
-            <div className="w-full max-w-md">
-                <div className="pathlock-card p-8">
-                    <div className="text-center mb-8">
-                        <div className="flex justify-center mb-4">
-                            <PathlockLogo size="lg" />
+            <div className="w-full max-w-sm">
+                <div className="pathlock-card p-6">
+                    <div className="text-center mb-6">
+                        <div className="flex justify-center mb-3">
+                            <PathlockLogo size="md" showText={false} />
                         </div>
-                        <h1 className="text-2xl font-bold text-gray-900 mb-2">
+                        <h1 className="text-xl font-bold text-gray-900 mb-1">
                             Pathlock IQ
                         </h1>
-                        <p className="text-gray-600">
+                        <p className="text-sm text-gray-600">
                             Chat with Your Data - Powered by Pathlock AI
                         </p>
                     </div>
 
-                    <form onSubmit={submit} className="space-y-6">
+                    <form onSubmit={submit} className="space-y-4">
                         <div>
-                            <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
+                            <label htmlFor="username" className="block text-xs font-medium text-gray-700 mb-1">
                                 Username
                             </label>
                             <input
@@ -65,7 +65,7 @@ export default function LoginPage() {
                         </div>
 
                         <div>
-                            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+                            <label htmlFor="password" className="block text-xs font-medium text-gray-700 mb-1">
                                 Password
                             </label>
                             <input
@@ -92,14 +92,14 @@ export default function LoginPage() {
 
                         <button
                             type="submit"
-                            className="w-full pathlock-button py-3 px-4 font-medium focus:ring-2 focus:ring-pathlock-green focus:ring-offset-2 focus:ring-offset-white transition-all duration-200"
+                            className="w-full pathlock-button py-2 px-3 font-medium focus:ring-2 focus:ring-pathlock-green focus:ring-offset-2 focus:ring-offset-white transition-all duration-200"
                         >
                             Sign In
                         </button>
                     </form>
 
-                    <div className="mt-6 text-center">
-                        <p className="text-sm text-gray-500">
+                    <div className="mt-4 text-center">
+                        <p className="text-xs text-gray-500">
                             Secure access to your Pathlock database
                         </p>
                     </div>
