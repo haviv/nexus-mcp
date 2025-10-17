@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import PathlockLogo from '../components/PathlockLogo';
 
 export default function LoginPage() {
     const [username, setUsername] = useState('');
@@ -32,32 +33,30 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
+        <div className="min-h-screen flex items-center justify-center bg-white">
             <div className="w-full max-w-md">
-                <div className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700">
+                <div className="pathlock-card p-8">
                     <div className="text-center mb-8">
-                        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 mb-4">
-                            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
+                        <div className="flex justify-center mb-4">
+                            <PathlockLogo size="lg" />
                         </div>
-                        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
-                            GRC Assistant
+                        <h1 className="text-2xl font-bold text-gray-900 mb-2">
+                            Pathlock IQ
                         </h1>
-                        <p className="text-gray-600 dark:text-gray-400">
-                            Governance, Risk & Compliance Database Assistant
+                        <p className="text-gray-600">
+                            Chat with Your Data - Powered by Pathlock AI
                         </p>
                     </div>
 
                     <form onSubmit={submit} className="space-y-6">
                         <div>
-                            <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
                                 Username
                             </label>
                             <input
                                 id="username"
                                 type="text"
-                                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                                className="pathlock-input w-full"
                                 placeholder="Enter your username"
                                 value={username}
                                 onChange={e => setUsername(e.target.value)}
@@ -66,13 +65,13 @@ export default function LoginPage() {
                         </div>
 
                         <div>
-                            <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
                                 Password
                             </label>
                             <input
                                 id="password"
                                 type="password"
-                                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                                className="pathlock-input w-full"
                                 placeholder="Enter your password"
                                 value={password}
                                 onChange={e => setPassword(e.target.value)}
@@ -81,27 +80,27 @@ export default function LoginPage() {
                         </div>
 
                         {error && (
-                            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                                 <div className="flex items-center">
                                     <svg className="w-5 h-5 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                     </svg>
-                                    <span className="text-red-800 dark:text-red-400 text-sm">{error}</span>
+                                    <span className="text-red-700 text-sm">{error}</span>
                                 </div>
                             </div>
                         )}
 
                         <button
                             type="submit"
-                            className="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white py-3 px-4 rounded-lg font-medium hover:from-blue-600 hover:to-purple-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200"
+                            className="w-full pathlock-button py-3 px-4 font-medium focus:ring-2 focus:ring-pathlock-green focus:ring-offset-2 focus:ring-offset-white transition-all duration-200"
                         >
                             Sign In
                         </button>
                     </form>
 
                     <div className="mt-6 text-center">
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                            Secure access to your GRC database
+                        <p className="text-sm text-gray-500">
+                            Secure access to your Pathlock database
                         </p>
                     </div>
                 </div>

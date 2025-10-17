@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Streamdown } from 'streamdown';
 import ChatInput from './ChatInput';
+import WelcomeSection from './WelcomeSection';
+import PathlockLogo from './PathlockLogo';
 
 export default function Chat() {
     const { logout } = useAuth();
@@ -114,65 +116,40 @@ export default function Chat() {
         }
     }, [messages.length]);
 
+    const handleQuestionClick = (question: string) => {
+        sendMessage({ text: question });
+    };
+
     return (
-        <div className="flex flex-col h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
+        <div className="flex flex-col h-screen bg-white">
             {/* Header */}
-            <div className="border-b border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
-                <div className="max-w-4xl mx-auto px-4 py-4">
+            <div className="border-b border-gray-200 bg-white/80 backdrop-blur-sm">
+                <div className="max-w-6xl mx-auto px-6 py-4">
                     <div className="flex justify-between items-center">
-                        <div>
-                            <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-                                GRC Assistant
-                            </h1>
-                            <p className="text-sm text-gray-600 dark:text-gray-400">
-                                Governance, Risk & Compliance Database Assistant
-                            </p>
-                        </div>
-                        <div className="flex space-x-2">
-                            <button
-                                onClick={handleLogout}
-                                className="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                            >
-                                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                                </svg>
-                                Logout
-                            </button>
-                            <button
-                                onClick={() => {
-                                    logout(); // This will update the auth state and trigger redirect
-                                }}
-                                className="inline-flex items-center px-3 py-2 border border-red-300 dark:border-red-600 rounded-lg text-sm font-medium text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
-                            >
-                                Test Login
-                            </button>
-                        </div>
+                        <PathlockLogo size="lg" />
+                        <button
+                            onClick={handleLogout}
+                            className="inline-flex items-center px-4 py-2 text-gray-700 hover:text-pathlock-green transition-colors duration-200"
+                        >
+                            <span className="mr-2">Logout</span>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                            </svg>
+                        </button>
                     </div>
                 </div>
             </div>
 
             {/* Messages Container */}
             <div className="flex-1 overflow-hidden">
-                <div 
+                <div
                     ref={scrollContainerRef}
                     className="h-full overflow-y-auto"
                     onScroll={handleScroll}
                 >
-                    <div className="max-w-4xl mx-auto px-4 py-6">
+                    <div className="max-w-6xl mx-auto px-6 py-6">
                         {messages.length === 0 && (
-                            <div className="text-center py-12">
-                                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 mb-4">
-                                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                                    </svg>
-                                </div>
-                                <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
-                                    Welcome to GRC Assistant
-                                </h2>
-                                <p className="text-gray-600 dark:text-gray-400 max-w-md mx-auto">
-                                    Ask questions about users, roles, violations, compliance status, and more from your Pathlock database.
-                                </p>
-                            </div>
+                            <WelcomeSection onQuestionClick={handleQuestionClick} />
                         )}
 
                         <div className="space-y-6">
@@ -184,7 +161,7 @@ export default function Chat() {
                                             .map((part: any) => (part.type === 'text' ? part.text : ''))
                                             .join('')
                                         : String(m.content || '');
-                                    
+
                                     console.log('🎨 AI Message Content:', extractedContent.substring(0, 200) + '...');
                                 }
 
@@ -200,25 +177,23 @@ export default function Chat() {
                                             {/* Avatar */}
                                             <div className={`flex-shrink-0 ${m.role === 'user' ? 'ml-3' : 'mr-3'}`}>
                                                 <div className={`w-8 h-8 rounded-full flex items-center justify-center ${m.role === 'user'
-                                                    ? 'bg-gradient-to-r from-blue-500 to-blue-600'
-                                                    : 'bg-gradient-to-r from-purple-500 to-purple-600'
+                                                    ? 'bg-pathlock-green'
+                                                    : 'bg-gray-100 border border-gray-200'
                                                     }`}>
                                                     {m.role === 'user' ? (
                                                         <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
                                                             <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
                                                         </svg>
                                                     ) : (
-                                                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                                        </svg>
+                                                        <PathlockLogo size="sm" showText={false} />
                                                     )}
                                                 </div>
                                             </div>
 
                                             {/* Message Content */}
                                             <div className={`rounded-2xl px-4 py-3 ${m.role === 'user'
-                                                ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white'
-                                                : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700'
+                                                ? 'bg-pathlock-green text-white border-2 border-pathlock-green'
+                                                : 'bg-white border border-gray-200 shadow-sm'
                                                 }`}>
                                                 {m.role === 'user' ? (
                                                     // For user messages, use simple text rendering
@@ -231,7 +206,7 @@ export default function Chat() {
                                                     // For AI messages, use Streamdown for rich formatting
                                                     <Streamdown
                                                         mermaidConfig={mermaidConfig}
-                                                        className="streamdown-container prose prose-sm max-w-none dark:prose-invert"
+                                                        className="streamdown-container prose prose-sm max-w-none"
                                                         shikiTheme={['github-light', 'github-dark']}
                                                         controls={{
                                                             table: true,
@@ -255,20 +230,18 @@ export default function Chat() {
                             <div className="flex justify-start mt-6">
                                 <div className="flex">
                                     <div className="flex-shrink-0 mr-3">
-                                        <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-500 to-purple-600 flex items-center justify-center">
-                                            <svg className="w-4 h-4 text-white animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                            </svg>
+                                        <div className="w-8 h-8 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center">
+                                            <PathlockLogo size="sm" showText={false} />
                                         </div>
                                     </div>
-                                    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl px-4 py-3">
+                                    <div className="bg-white border border-gray-200 shadow-sm rounded-2xl px-4 py-3">
                                         <div className="flex items-center space-x-2">
                                             <div className="flex space-x-1">
-                                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                                                <div className="w-2 h-2 bg-pathlock-green rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                                                <div className="w-2 h-2 bg-pathlock-green rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                                                <div className="w-2 h-2 bg-pathlock-green rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
                                             </div>
-                                            <span className="text-sm text-gray-500 dark:text-gray-400">Thinking...</span>
+                                            <span className="text-sm text-gray-600">Thinking...</span>
                                         </div>
                                     </div>
                                 </div>
@@ -278,16 +251,16 @@ export default function Chat() {
                         {/* Error State */}
                         {error && (
                             <div className="mt-6">
-                                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+                                <div className="bg-red-50 border border-red-200 rounded-xl p-4">
                                     <div className="flex items-center">
                                         <svg className="w-5 h-5 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                         </svg>
-                                        <span className="text-red-800 dark:text-red-400 font-medium">An error occurred</span>
+                                        <span className="text-red-700 font-medium">An error occurred</span>
                                     </div>
                                     <button
                                         type="button"
-                                        className="mt-3 inline-flex items-center px-3 py-2 border border-red-300 dark:border-red-700 rounded-lg text-sm font-medium text-red-700 dark:text-red-400 bg-white dark:bg-red-900/20 hover:bg-red-50 dark:hover:bg-red-900/40 transition-colors"
+                                        className="mt-3 pathlock-button-secondary text-red-700 border-red-300 hover:bg-red-50"
                                         onClick={() => regenerate()}
                                     >
                                         <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -311,7 +284,7 @@ export default function Chat() {
                                 setIsUserScrolledUp(false);
                                 scrollToBottom();
                             }}
-                            className="flex items-center justify-center w-12 h-12 bg-blue-500 hover:bg-blue-600 text-white rounded-full shadow-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                            className="flex items-center justify-center w-12 h-12 bg-pathlock-green hover:bg-pathlock-green-dark text-white rounded-full shadow-pathlock-lg transition-colors focus:outline-none focus:ring-2 focus:ring-pathlock-green focus:ring-offset-2 focus:ring-offset-white"
                             title="Scroll to bottom"
                         >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -323,8 +296,8 @@ export default function Chat() {
             </div>
 
             {/* Chat Input */}
-            <div className="border-t border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
-                <div className="max-w-4xl mx-auto px-4 py-4">
+            <div className="border-t border-gray-200 bg-white/80 backdrop-blur-sm">
+                <div className="max-w-6xl mx-auto px-6 py-4">
                     <ChatInput
                         ref={chatInputRef}
                         status={status}
