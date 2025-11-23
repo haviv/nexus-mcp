@@ -34,4 +34,30 @@
     .pathlock-input {
         @apply bg-white border border-gray-300 text-gray-900 placeholder-gray-500 rounded-lg px-3 py-2 focus:border-pathlock-green focus:ring-1 focus:ring-pathlock-green focus:outline-none transition-colors;
     }
+
+    /* Automation workflow button styling */
+    .streamdown-container a[href*="workflow-builder"] {
+        display: inline-block;
+        padding: 6px 14px;
+        background: #33CC66;
+        color: white !important;
+        text-decoration: none !important;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 600;
+        margin-left: 4px;
+        transition: all 0.2s ease;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    }
+
+    .streamdown-container a[href*="workflow-builder"]:hover {
+        background: #2BB55A;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        transform: translateY(-1px);
+    }
+
+    .streamdown-container a[href*="workflow-builder"]:active {
+        transform: translateY(0);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    }
 }
