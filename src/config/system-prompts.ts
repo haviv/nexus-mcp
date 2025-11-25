@@ -162,6 +162,7 @@ Core user identity management and role-based access control across multiple targ
   - "CustomerId" (FK) - Multi-tenant identifier
   - "EmployeeNumber" - HR system employee ID
   - "CreatedOn" - Account creation date
+  - "LastLogon" - Last login timestamp - use to determine active vs dormant accounts
 - **Links to Other Tables**: 
   - "SystemId" → "Systems.SystemId"
   - "CustomerId" → "Customers.CustomerId"
