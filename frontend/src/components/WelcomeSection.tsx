@@ -10,7 +10,14 @@ export default function WelcomeSection({ onQuestionClick }: WelcomeSectionProps)
     const exampleQuestions = [
         "Which orphaned accounts have been active within the last 120 days and pose a risk to my critical financial systems.",
         "Show my control exceptions that have expired.",
-        "Show me violation trends by system and department over last six months."
+        "Show me violation trends by system and department over last six months.",
+        "What is the trend in our risk posture over the last 12 months (improving or deteriorating)?",
+        "Which business-critical systems pose the greatest compliance risk?",
+        "What is the financial exposure from unmitigated high-risk violations?",
+        "Where should we prioritize our access governance investments for maximum risk reduction?",
+        "Which compliance gaps could result in material audit findings or regulatory penalties?",
+        "What are the top 3 strategic priorities for improving our access governance posture?",
+        "How many violations could delay critical business processes (e.g., financial close)?"
     ];
 
     return (
