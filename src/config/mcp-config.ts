@@ -10,6 +10,11 @@ export const mcpConfig = {
             LOGGING__LOGLEVEL__MODELCONTEXTPROTOCOL: "Error"
         }
     },
+    gitbook: {
+        url: process.env.GITBOOK_MCP_URL || 'https://help.pathlock.com/pathlock-cloud-documentation/~gitbook/mcp',
+        signingKey: process.env.GITBOOK_SIGNING_KEY || '',
+        spaceId: process.env.GITBOOK_SPACE_ID || '6fc3d2cd8883fb2297b19f00e2a78bb16bfa8f95',
+    },
     nexus: {
         url: process.env.MCP_NEXUS_URL || 'http://localhost:3000/mcp-nexus/server'
     },

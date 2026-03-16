@@ -77,11 +77,31 @@ Object.keys(process.env).sort().forEach(key => {
 });
 console.log('================================\n');
 
+// Generate a signed JWT for GitBook visitor authentication
+function generateGitBookJWT(): string {
+    if (!mcpConfig.gitbook.signingKey) {
+        console.warn('GITBOOK_SIGNING_KEY not set — GitBook MCP will be skipped');
+        return '';
+    }
+    return jwt.sign({}, mcpConfig.gitbook.signingKey, { expiresIn: '1h' });
+}
+
+// Build the cookie value GitBook expects after the ?jwt_token redirect flow
+function buildGitBookCookie(token: string): string {
+    const payload = JSON.stringify({
+        basePath: '/pathlock-cloud-documentation/',
+        token,
+    });
+    return `gitbook-visitor-token~${mcpConfig.gitbook.spaceId}=${encodeURIComponent(payload)}`;
+}
+
 // Log MCP configuration at startup
 console.log('=== MCP CONFIGURATION ===');
 console.log('MCP_SQL_COMMAND:', process.env.MCP_SQL_COMMAND || mcpConfig.mssql.command);
 console.log('MCP_CONNECTION_STRING:', process.env.MCP_CONNECTION_STRING);
 console.log('MCP_NEXUS_URL:', process.env.MCP_NEXUS_URL || mcpConfig.nexus.url);
+console.log('GITBOOK_MCP_URL:', mcpConfig.gitbook.url);
+console.log('GITBOOK_SIGNING_KEY:', mcpConfig.gitbook.signingKey ? '***set***' : 'NOT SET');
 console.log('MAX_STEPS:', mcpConfig.settings.maxSteps);
 console.log('========================\n');
 
@@ -198,7 +218,34 @@ createServer(async (req, res) => {
                             transport: mssqlStdioTransport,
                         });
 
-                        const tools = await mssqlMcpClient.tools();
+                        const mssqlTools = await mssqlMcpClient.tools();
+
+                        // Set up MCP client for GitBook (Pathlock docs)
+                        let gitbookMcpClient: Awaited<ReturnType<typeof experimental_createMCPClient>> | null = null;
+                        let gitbookTools: Record<string, any> = {};
+
+                        if (mcpConfig.gitbook.signingKey) {
+                            try {
+                                const gitbookJwt = generateGitBookJWT();
+                                const cookie = buildGitBookCookie(gitbookJwt);
+
+                                const gitbookTransport = new StreamableHTTPClientTransport(
+                                    new URL(mcpConfig.gitbook.url),
+                                    { requestInit: { headers: { Cookie: cookie } } },
+                                );
+
+                                gitbookMcpClient = await experimental_createMCPClient({
+                                    transport: gitbookTransport,
+                                });
+
+                                gitbookTools = await gitbookMcpClient.tools();
+                                console.log("GitBook MCP connected — tools:", Object.keys(gitbookTools));
+                            } catch (err) {
+                                console.error("Failed to connect GitBook MCP (continuing without docs):", err);
+                            }
+                        }
+
+                        const tools = { ...mssqlTools, ...gitbookTools };
 
                         // Print all messages for debugging context length issues
                         console.log('=== DEBUGGING CONTEXT LENGTH ===');
@@ -260,6 +307,7 @@ createServer(async (req, res) => {
                             messages: convertToModelMessages(processedMessages),
                             onFinish: async () => {
                                 await mssqlMcpClient.close();
+                                if (gitbookMcpClient) await gitbookMcpClient.close().catch(() => {});
                             },
                         });
 
