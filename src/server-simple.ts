@@ -1,7 +1,7 @@
-import { openai } from '@ai-sdk/openai';
 import { streamText } from 'ai';
 import { createServer } from 'http';
 import 'dotenv/config';
+import { llmModel } from './config/mcp-config.js';
 import { systemPrompts } from './config/system-prompts.js';
 
 const PORT = process.env.PORT || 3000;
@@ -44,7 +44,7 @@ createServer(async (req, res) => {
                         console.log('=== END REQUEST ===\n');
 
                         const result = streamText({
-                            model: openai('gpt-4o'),
+                            model: llmModel,
                             system: systemPrompts.grcAssistant,
                             messages: messages.map((msg: any) => ({
                                 role: msg.role,

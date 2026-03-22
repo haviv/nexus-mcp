@@ -1,4 +1,3 @@
-import { openai } from '@ai-sdk/openai';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import {
@@ -13,7 +12,7 @@ import bcrypt from 'bcryptjs';
 import fs from 'fs';
 import path from 'path';
 import 'dotenv/config';
-import { mcpConfig } from './config/mcp-config.js';
+import { mcpConfig, llmModel, llmInfo } from './config/mcp-config.js';
 import { systemPrompts } from './config/system-prompts.js';
 
 const PORT = process.env.PORT || 5000;
@@ -71,11 +70,28 @@ function logUserPrompt(messages: any[], timestamp: string = new Date().toISOStri
 // Log all environment variables for debugging
 console.log('=== ALL ENVIRONMENT VARIABLES ===');
 Object.keys(process.env).sort().forEach(key => {
-    if (key.includes('ADMIN') || key.includes('MCP') || key.includes('PORT') || key.includes('JWT') || key.includes('OPENAI')) {
+    if (key.includes('ADMIN') || key.includes('MCP') || key.includes('PORT') || key.includes('JWT') || key.includes('LLM')) {
         console.log(`${key}: ${process.env[key]}`);
     }
 });
 console.log('================================\n');
+
+// Log MCP configuration at startup
+console.log('=== MCP CONFIGURATION ===');
+console.log('LLM_PROVIDER:', llmInfo.provider);
+console.log('LLM_MODEL:', llmInfo.model);
+console.log('LLM_BASE_URL:', llmInfo.baseURL);
+console.log('MCP_SQL_COMMAND:', process.env.MCP_SQL_COMMAND || mcpConfig.mssql.command);
+console.log('MCP_CONNECTION_STRING:', process.env.MCP_CONNECTION_STRING);
+console.log('GITBOOK_MCP_URL:', mcpConfig.gitbook.url);
+console.log('GITBOOK_SIGNING_KEY:', mcpConfig.gitbook.signingKey ? '***set***' : 'NOT SET');
+console.log('CLICKHOUSE_HOST:', mcpConfig.clickhouse.env.CLICKHOUSE_HOST);
+console.log('CLICKHOUSE_DATABASE:', mcpConfig.clickhouse.env.CLICKHOUSE_DATABASE);
+console.log('WORKFLOW_MCP_PATH:', mcpConfig.workflow.args[0]);
+console.log('WORKFLOW_API_URL:', mcpConfig.workflow.env.WORKFLOW_API_URL);
+console.log('WORKFLOW_API_TOKEN:', mcpConfig.workflow.env.WORKFLOW_API_TOKEN ? '***set***' : 'NOT SET');
+console.log('MAX_STEPS:', mcpConfig.settings.maxSteps);
+console.log('========================\n');
 
 // Generate a signed JWT for GitBook visitor authentication
 function generateGitBookJWT(): string {
@@ -95,15 +111,50 @@ function buildGitBookCookie(token: string): string {
     return `gitbook-visitor-token~${mcpConfig.gitbook.spaceId}=${encodeURIComponent(payload)}`;
 }
 
-// Log MCP configuration at startup
-console.log('=== MCP CONFIGURATION ===');
-console.log('MCP_SQL_COMMAND:', process.env.MCP_SQL_COMMAND || mcpConfig.mssql.command);
-console.log('MCP_CONNECTION_STRING:', process.env.MCP_CONNECTION_STRING);
-console.log('MCP_NEXUS_URL:', process.env.MCP_NEXUS_URL || mcpConfig.nexus.url);
-console.log('GITBOOK_MCP_URL:', mcpConfig.gitbook.url);
-console.log('GITBOOK_SIGNING_KEY:', mcpConfig.gitbook.signingKey ? '***set***' : 'NOT SET');
-console.log('MAX_STEPS:', mcpConfig.settings.maxSteps);
-console.log('========================\n');
+// Shared helper: prepare messages for LLM (last 20, truncate assistant)
+function prepareMessages(messages: any[]) {
+    const messagesToSend = messages.slice(-20);
+    return messagesToSend.map((message: any) => {
+        if (message.role === 'assistant') {
+            const truncatedMessage = { ...message };
+            if (truncatedMessage.parts && Array.isArray(truncatedMessage.parts)) {
+                truncatedMessage.parts = truncatedMessage.parts.map((part: any) => {
+                    if (part.text && part.text.length > 500) {
+                        return { ...part, text: part.text.substring(0, 500) + '...[truncated]' };
+                    }
+                    return part;
+                });
+            } else if (truncatedMessage.content && truncatedMessage.content.length > 500) {
+                truncatedMessage.content = truncatedMessage.content.substring(0, 500) + '...[truncated]';
+            }
+            return truncatedMessage;
+        }
+        return message;
+    });
+}
+
+// Shared helper: stream result back to response
+function pipeStreamToResponse(result: any, res: any) {
+    const webResponse = result.toUIMessageStreamResponse();
+    const headers = Object.fromEntries(webResponse.headers.entries());
+    res.writeHead(webResponse.status, headers as any);
+    const webBody = webResponse.body as ReadableStream<Uint8Array> | null;
+    if (!webBody) { res.end(); return; }
+    const reader = webBody.getReader();
+    (async () => {
+        try {
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+                if (value) res.write(Buffer.from(value));
+            }
+            res.end();
+        } catch (err) {
+            console.error('Error streaming response:', err);
+            res.destroy(err as Error);
+        }
+    })();
+}
 
 createServer(async (req, res) => {
     // Enable CORS
@@ -199,142 +250,38 @@ createServer(async (req, res) => {
                 req.on('end', async () => {
                     try {
                         const { messages } = JSON.parse(body);
-
-                        // Log user prompts to file
                         logUserPrompt(messages);
 
-                        // Set up MCP client for MSSQL
-                        const mssqlStdioTransport = new StdioClientTransport({
-                            command: mcpConfig.mssql.command,
-                            args: mcpConfig.mssql.args,
-                            env: mcpConfig.mssql.env,
-                        });
-
-                        console.log("Created MCP client for MSSQL with command:", mcpConfig.mssql.command);
-                        console.log("MCP client environment:", mcpConfig.mssql.env);
-                        console.log("MCP client args:", mcpConfig.mssql.args);
-
                         const mssqlMcpClient = await experimental_createMCPClient({
-                            transport: mssqlStdioTransport,
+                            transport: new StdioClientTransport({
+                                command: mcpConfig.mssql.command,
+                                args: mcpConfig.mssql.args,
+                                env: mcpConfig.mssql.env,
+                            }),
                         });
+                        const tools = await mssqlMcpClient.tools();
+                        console.log("MSSQL MCP connected — tools:", Object.keys(tools));
 
-                        const mssqlTools = await mssqlMcpClient.tools();
-
-                        // Set up MCP client for GitBook (Pathlock docs)
-                        let gitbookMcpClient: Awaited<ReturnType<typeof experimental_createMCPClient>> | null = null;
-                        let gitbookTools: Record<string, any> = {};
-
-                        if (mcpConfig.gitbook.signingKey) {
-                            try {
-                                const gitbookJwt = generateGitBookJWT();
-                                const cookie = buildGitBookCookie(gitbookJwt);
-
-                                const gitbookTransport = new StreamableHTTPClientTransport(
-                                    new URL(mcpConfig.gitbook.url),
-                                    { requestInit: { headers: { Cookie: cookie } } },
-                                );
-
-                                gitbookMcpClient = await experimental_createMCPClient({
-                                    transport: gitbookTransport,
-                                });
-
-                                gitbookTools = await gitbookMcpClient.tools();
-                                console.log("GitBook MCP connected — tools:", Object.keys(gitbookTools));
-                            } catch (err) {
-                                console.error("Failed to connect GitBook MCP (continuing without docs):", err);
-                            }
-                        }
-
-                        const tools = { ...mssqlTools, ...gitbookTools };
-
-                        // Print all messages for debugging context length issues
-                        console.log('=== DEBUGGING CONTEXT LENGTH ===');
-                        console.log('Total messages count:', messages.length);
-
-                        // Take the last 20 messages (both user and assistant) but truncate assistant responses
-                        const messagesToSend = messages.slice(-20); // Get last 20 messages total
-
-                        // Truncate assistant responses to avoid context window limits
-                        const processedMessages = messagesToSend.map((message: any) => {
-                            if (message.role === 'assistant') {
-                                // Truncate assistant responses to first 500 characters
-                                const truncatedMessage = { ...message };
-                                if (truncatedMessage.parts && Array.isArray(truncatedMessage.parts)) {
-                                    truncatedMessage.parts = truncatedMessage.parts.map((part: any) => {
-                                        if (part.text && part.text.length > 500) {
-                                            return { ...part, text: part.text.substring(0, 500) + '...[truncated]' };
-                                        }
-                                        return part;
-                                    });
-                                } else if (truncatedMessage.content && truncatedMessage.content.length > 500) {
-                                    truncatedMessage.content = truncatedMessage.content.substring(0, 500) + '...[truncated]';
-                                }
-                                return truncatedMessage;
-                            }
-                            // Keep user messages at full length
-                            return message;
-                        });
-
-                        console.log('Total messages received:', messages.length);
-                        console.log('Sending last 20 messages (user + assistant, assistant responses truncated)');
-                        console.log('Messages to send:', processedMessages.length);
-
-                        let contentSize = 0;
-                        processedMessages.forEach((message: any) => {
-                            if (message.parts && Array.isArray(message.parts)) {
-                                message.parts.forEach((part: any) => {
-                                    if (part.text) contentSize += part.text.length;
-                                });
-                            } else if (message.content) {
-                                contentSize += message.content.length;
-                            }
-                        });
-
-                        console.log('Processed messages size:', contentSize, 'characters');
-                        console.log('System prompt size:', systemPrompts.grcAssistant.length, 'characters');
-                        console.log('Total size:', contentSize + systemPrompts.grcAssistant.length, 'characters');
-                        console.log('Estimated tokens:', Math.ceil((contentSize + systemPrompts.grcAssistant.length) / 4));
-                        console.log('=== END DEBUG INFO ===\n');
+                        const processedMessages = prepareMessages(messages);
+                        console.log(`Processing ${messages.length} messages → ${processedMessages.length} sent`);
 
                         const result = streamText({
-                            model: openai('gpt-5.1'),
+                            model: llmModel,
                             stopWhen: stepCountIs(mcpConfig.settings.maxSteps),
                             tools,
                             onStepFinish: async ({ toolResults }) => {
                                 console.log(`STEP RESULTS: ${JSON.stringify(toolResults, null, 2)}`);
                             },
-                            system: systemPrompts.grcAssistant,
+                            system: `Today's date is ${new Date().toISOString().split('T')[0]}.
+
+${systemPrompts.grcAssistant}`,
                             messages: convertToModelMessages(processedMessages),
                             onFinish: async () => {
                                 await mssqlMcpClient.close();
-                                if (gitbookMcpClient) await gitbookMcpClient.close().catch(() => {});
                             },
                         });
 
-                        // Return a UI message stream response compatible with @ai-sdk/react
-                        const webResponse = result.toUIMessageStreamResponse();
-                        const headers = Object.fromEntries(webResponse.headers.entries());
-                        res.writeHead(webResponse.status, headers as any);
-
-                        const webBody = webResponse.body as ReadableStream<Uint8Array> | null;
-                        if (!webBody) {
-                            res.end();
-                            return;
-                        }
-                        const reader = webBody.getReader();
-                        (async () => {
-                            try {
-                                while (true) {
-                                    const { value, done } = await reader.read();
-                                    if (done) break;
-                                    if (value) res.write(Buffer.from(value));
-                                }
-                                res.end();
-                            } catch (err) {
-                                console.error('Error streaming UI response:', err);
-                                res.destroy(err as Error);
-                            }
-                        })();
+                        pipeStreamToResponse(result, res);
                     } catch (error) {
                         console.error('Error processing chat request:', error);
                         res.writeHead(500, { 'Content-Type': 'application/json' });
@@ -343,6 +290,225 @@ createServer(async (req, res) => {
                 });
             } catch (error) {
                 console.error('Error setting up chat handler:', error);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Internal server error' }));
+            }
+            break;
+        }
+
+        case '/mcp-nexus/chat-docs': {
+            if (req.method !== 'POST') {
+                res.writeHead(405, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Method not allowed' }));
+                return;
+            }
+            try {
+                const auth = req.headers['authorization'] || '';
+                const token = auth.startsWith('Bearer ') ? auth.substring('Bearer '.length) : '';
+                try {
+                    jwt.verify(token, process.env.JWT_SECRET || 'dev-secret');
+                } catch {
+                    res.writeHead(401, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Token expired or invalid', code: 'TOKEN_EXPIRED', redirectToLogin: true }));
+                    return;
+                }
+                let body = '';
+                req.on('data', chunk => { body += chunk.toString(); });
+                req.on('end', async () => {
+                    try {
+                        const { messages } = JSON.parse(body);
+                        logUserPrompt(messages);
+
+                        let gitbookMcpClient: Awaited<ReturnType<typeof experimental_createMCPClient>> | null = null;
+                        let tools: Record<string, any> = {};
+                        if (mcpConfig.gitbook.signingKey) {
+                            try {
+                                const cookie = buildGitBookCookie(generateGitBookJWT());
+                                gitbookMcpClient = await experimental_createMCPClient({
+                                    transport: new StreamableHTTPClientTransport(
+                                        new URL(mcpConfig.gitbook.url),
+                                        { requestInit: { headers: { Cookie: cookie } } },
+                                    ),
+                                });
+                                tools = await gitbookMcpClient.tools();
+                                console.log("GitBook MCP connected — tools:", Object.keys(tools));
+                            } catch (err) {
+                                console.error("Failed to connect GitBook MCP:", err);
+                            }
+                        } else {
+                            console.warn('GITBOOK_SIGNING_KEY not set — docs mode has no tools');
+                        }
+
+                        const processedMessages = prepareMessages(messages);
+                        const result = streamText({
+                            model: llmModel,
+                            stopWhen: stepCountIs(mcpConfig.settings.maxSteps),
+                            tools,
+                            onStepFinish: async ({ toolResults }) => {
+                                console.log(`DOCS STEP: ${JSON.stringify(toolResults, null, 2)}`);
+                            },
+                            system: `Today's date is ${new Date().toISOString().split('T')[0]}.
+
+${systemPrompts.docsAssistant}`,
+                            messages: convertToModelMessages(processedMessages),
+                            onFinish: async () => {
+                                if (gitbookMcpClient) await gitbookMcpClient.close().catch(() => {});
+                            },
+                        });
+                        pipeStreamToResponse(result, res);
+                    } catch (error) {
+                        console.error('Error in chat-docs:', error);
+                        res.writeHead(500, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ error: 'Internal server error' }));
+                    }
+                });
+            } catch (error) {
+                console.error('Error setting up chat-docs handler:', error);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Internal server error' }));
+            }
+            break;
+        }
+
+        case '/mcp-nexus/chat-analytics': {
+            if (req.method !== 'POST') {
+                res.writeHead(405, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Method not allowed' }));
+                return;
+            }
+            try {
+                const auth = req.headers['authorization'] || '';
+                const token = auth.startsWith('Bearer ') ? auth.substring('Bearer '.length) : '';
+                try {
+                    jwt.verify(token, process.env.JWT_SECRET || 'dev-secret');
+                } catch {
+                    res.writeHead(401, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Token expired or invalid', code: 'TOKEN_EXPIRED', redirectToLogin: true }));
+                    return;
+                }
+                let body = '';
+                req.on('data', chunk => { body += chunk.toString(); });
+                req.on('end', async () => {
+                    try {
+                        const { messages } = JSON.parse(body);
+                        logUserPrompt(messages);
+
+                        // Connect SQL Server
+                        const mssqlMcpClient = await experimental_createMCPClient({
+                            transport: new StdioClientTransport({
+                                command: mcpConfig.mssql.command,
+                                args: mcpConfig.mssql.args,
+                                env: mcpConfig.mssql.env,
+                            }),
+                        });
+                        const mssqlTools = await mssqlMcpClient.tools();
+                        console.log("MSSQL MCP connected — tools:", Object.keys(mssqlTools));
+
+                        // Connect ClickHouse
+                        let clickhouseMcpClient: Awaited<ReturnType<typeof experimental_createMCPClient>> | null = null;
+                        let clickhouseTools: Record<string, any> = {};
+                        try {
+                            clickhouseMcpClient = await experimental_createMCPClient({
+                                transport: new StdioClientTransport({
+                                    command: mcpConfig.clickhouse.command,
+                                    args: mcpConfig.clickhouse.args,
+                                    env: mcpConfig.clickhouse.env,
+                                }),
+                            });
+                            clickhouseTools = await clickhouseMcpClient.tools();
+                            console.log("ClickHouse MCP connected — tools:", Object.keys(clickhouseTools));
+                        } catch (err) {
+                            console.error("Failed to connect ClickHouse MCP (continuing without it):", err);
+                        }
+
+                        const tools = { ...mssqlTools, ...clickhouseTools };
+                        const processedMessages = prepareMessages(messages);
+                        const result = streamText({
+                            model: llmModel,
+                            stopWhen: stepCountIs(mcpConfig.settings.maxSteps),
+                            tools,
+                            onStepFinish: async ({ toolResults }) => {
+                                console.log(`ANALYTICS STEP: ${JSON.stringify(toolResults, null, 2)}`);
+                            },
+                            system: `Today's date is ${new Date().toISOString().split('T')[0]}. All date references in queries should use this year unless the user explicitly specifies otherwise.\n\n${systemPrompts.analyticsAssistant}`,
+                            messages: convertToModelMessages(processedMessages),
+                            onFinish: async () => {
+                                await mssqlMcpClient.close();
+                                if (clickhouseMcpClient) await clickhouseMcpClient.close().catch(() => {});
+                            },
+                        });
+                        pipeStreamToResponse(result, res);
+                    } catch (error) {
+                        console.error('Error in chat-analytics:', error);
+                        res.writeHead(500, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ error: 'Internal server error' }));
+                    }
+                });
+            } catch (error) {
+                console.error('Error setting up chat-analytics handler:', error);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Internal server error' }));
+            }
+            break;
+        }
+
+        case '/mcp-nexus/chat-workflow': {
+            if (req.method !== 'POST') {
+                res.writeHead(405, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Method not allowed' }));
+                return;
+            }
+            try {
+                const auth = req.headers['authorization'] || '';
+                const token = auth.startsWith('Bearer ') ? auth.substring('Bearer '.length) : '';
+                try {
+                    jwt.verify(token, process.env.JWT_SECRET || 'dev-secret');
+                } catch {
+                    res.writeHead(401, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Token expired or invalid', code: 'TOKEN_EXPIRED', redirectToLogin: true }));
+                    return;
+                }
+                let body = '';
+                req.on('data', chunk => { body += chunk.toString(); });
+                req.on('end', async () => {
+                    try {
+                        const { messages } = JSON.parse(body);
+                        logUserPrompt(messages);
+
+                        // Connect Workflow MCP (stdio, same pattern as ClickHouse)
+                        const workflowMcpClient = await experimental_createMCPClient({
+                            transport: new StdioClientTransport({
+                                command: mcpConfig.workflow.command,
+                                args: mcpConfig.workflow.args,
+                                env: mcpConfig.workflow.env,
+                            }),
+                        });
+                        const tools = await workflowMcpClient.tools();
+                        console.log("Workflow MCP connected — tools:", Object.keys(tools));
+
+                        const processedMessages = prepareMessages(messages);
+                        const result = streamText({
+                            model: llmModel,
+                            stopWhen: stepCountIs(mcpConfig.settings.maxSteps),
+                            tools,
+                            onStepFinish: async ({ toolResults }) => {
+                                console.log(`WORKFLOW STEP: ${JSON.stringify(toolResults, null, 2)}`);
+                            },
+                            system: `Today's date is ${new Date().toISOString().split('T')[0]}.\n\n${systemPrompts.workflowAssistant}`,
+                            messages: convertToModelMessages(processedMessages),
+                            onFinish: async () => {
+                                await workflowMcpClient.close();
+                            },
+                        });
+                        pipeStreamToResponse(result, res);
+                    } catch (error) {
+                        console.error('Error in chat-workflow:', error);
+                        res.writeHead(500, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ error: 'Internal server error' }));
+                    }
+                });
+            } catch (error) {
+                console.error('Error setting up chat-workflow handler:', error);
                 res.writeHead(500, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ error: 'Internal server error' }));
             }
@@ -421,7 +587,10 @@ createServer(async (req, res) => {
     }
 }).listen(PORT, () => {
     console.log(`🚀 MCP Nexus Node.js server running on port ${PORT}`);
-    console.log(`📡 Chat API: http://localhost:${PORT}/mcp-nexus/chat`);
-    console.log(`🔧 MCP Server: http://localhost:${PORT}/mcp-nexus/server`);
-    console.log(`❤️  Health: http://localhost:${PORT}/health`);
+    console.log(`📡 GRC Chat:       http://localhost:${PORT}/mcp-nexus/chat`);
+    console.log(`📚 Docs Chat:      http://localhost:${PORT}/mcp-nexus/chat-docs`);
+    console.log(`📊 Analytics Chat: http://localhost:${PORT}/mcp-nexus/chat-analytics`);
+    console.log(`⚙️  Workflow Chat:  http://localhost:${PORT}/mcp-nexus/chat-workflow`);
+    console.log(`🔧 MCP Server:     http://localhost:${PORT}/mcp-nexus/server`);
+    console.log(`❤️  Health:         http://localhost:${PORT}/health`);
 });

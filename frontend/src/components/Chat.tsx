@@ -7,11 +7,29 @@ import ChatInput from './ChatInput';
 import WelcomeSection from './WelcomeSection';
 import PathlockLogo from './PathlockLogo';
 
-export default function Chat() {
+type ChatMode = 'grc' | 'docs' | 'analytics' | 'workflow';
+
+const MODE_LABELS: Record<ChatMode, { label: string; color: string }> = {
+    grc: { label: 'GRC Assistant', color: 'bg-pathlock-green/10 text-pathlock-green border-pathlock-green/20' },
+    docs: { label: 'Docs Assistant', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+    analytics: { label: 'Analytics Assistant', color: 'bg-purple-50 text-purple-700 border-purple-200' },
+    workflow: { label: 'Workflow Builder', color: 'bg-orange-50 text-orange-700 border-orange-200' },
+};
+
+function getApiUrl(mode: ChatMode): string {
+    const base = import.meta.env.VITE_API_BASE_URL || '';
+    if (mode === 'docs') return `${base}/mcp-nexus/chat-docs`;
+    if (mode === 'analytics') return `${base}/mcp-nexus/chat-analytics`;
+    if (mode === 'workflow') return `${base}/mcp-nexus/chat-workflow`;
+    return import.meta.env.VITE_API_URL || `${base}/mcp-nexus/chat`;
+}
+
+// Inner component — a single chat session, remounted when session key changes
+function ChatSession({ mode, onModeChange }: { mode: ChatMode; onModeChange: (m: ChatMode) => void }) {
     const { logout } = useAuth();
     const { error, status, sendMessage, messages, regenerate, stop } = useChat({
         transport: new DefaultChatTransport({
-            api: import.meta.env.VITE_API_URL || '/mcp-nexus/chat',
+            api: getApiUrl(mode),
             headers: () => {
                 const token = localStorage.getItem('jwt_token');
                 return token ? { Authorization: `Bearer ${token}` } : { Authorization: '' };
@@ -27,31 +45,17 @@ export default function Chat() {
 
     // Debug logging for all messages changes
     useEffect(() => {
-        console.log('📬 Messages updated:', {
-            count: messages.length,
-            status,
-            latestMessage: messages[messages.length - 1],
-            allMessages: messages
-        });
+        console.log('📬 Messages updated:', { count: messages.length, status });
     }, [messages, status]);
 
-    // Handle token expiration and logout
-    const handleLogout = () => {
-        logout(); // This will update the auth state and trigger redirect
-    };
-
     useEffect(() => {
-        if (error) {
-            console.log('Chat error:', error);
-            // Check if it's a 401 error (unauthorized) which indicates token expiration
-            if (error.message && (
-                error.message.includes('Token expired or invalid') ||
-                error.message.includes('Unauthorized') ||
-                error.message.includes('401')
-            )) {
-                console.log('Token expired or unauthorized, redirecting to login');
-                logout(); // This will update the auth state and trigger redirect
-            }
+        if (error?.message && (
+            error.message.includes('Token expired or invalid') ||
+            error.message.includes('Unauthorized') ||
+            error.message.includes('401')
+        )) {
+            console.log('Token expired or unauthorized, redirecting to login');
+            logout();
         }
     }, [error]);
 
@@ -60,7 +64,7 @@ export default function Chat() {
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
 
-    // Mermaid configuration for dark/light themes
+    // mermaidConfig is passed to Streamdown for non-mermaid segments (unused key, kept for consistency)
     const mermaidConfig = {
         theme: 'base' as const,
         themeVariables: {
@@ -120,22 +124,39 @@ export default function Chat() {
         sendMessage({ text: question });
     };
 
+    const modeInfo = MODE_LABELS[mode];
+
     return (
         <div className="flex flex-col h-screen bg-white">
             {/* Header */}
             <div className="border-b border-gray-200 bg-white/80 backdrop-blur-sm">
                 <div className="max-w-5xl mx-auto px-4 py-2">
                     <div className="flex justify-between items-center">
-                        <PathlockLogo size="md" />
-                        <button
-                            onClick={handleLogout}
-                            className="inline-flex items-center px-3 py-1 text-sm text-gray-700 hover:text-pathlock-green transition-colors duration-200"
-                        >
-                            <span className="mr-1">Logout</span>
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013 3v1" />
-                            </svg>
-                        </button>
+                        <div className="flex items-center gap-3">
+                            <PathlockLogo size="md" />
+                            <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${modeInfo.color}`}>
+                                {modeInfo.label}
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            {messages.length > 0 && (
+                                <button
+                                    onClick={() => onModeChange('grc')}
+                                    className="text-xs text-gray-500 hover:text-pathlock-green transition-colors duration-200 underline underline-offset-2"
+                                >
+                                    Switch mode
+                                </button>
+                            )}
+                            <button
+                                onClick={logout}
+                                className="inline-flex items-center px-3 py-1 text-sm text-gray-700 hover:text-pathlock-green transition-colors duration-200"
+                            >
+                                <span className="mr-1">Logout</span>
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013 3v1" />
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -149,7 +170,7 @@ export default function Chat() {
                 >
                     <div className="max-w-5xl mx-auto px-4 py-4">
                         {messages.length === 0 && (
-                            <WelcomeSection onQuestionClick={handleQuestionClick} />
+                            <WelcomeSection onQuestionClick={handleQuestionClick} onModeChange={onModeChange} mode={mode} />
                         )}
 
                         <div className="space-y-4">
@@ -308,4 +329,17 @@ export default function Chat() {
             </div>
         </div>
     );
+}
+
+// Outer component — manages chat mode and session key
+export default function Chat() {
+    const [chatMode, setChatMode] = useState<ChatMode>('grc');
+    const [sessionKey, setSessionKey] = useState(0);
+
+    const handleModeChange = (mode: ChatMode) => {
+        setChatMode(mode);
+        setSessionKey(k => k + 1);
+    };
+
+    return <ChatSession key={sessionKey} mode={chatMode} onModeChange={handleModeChange} />;
 }
