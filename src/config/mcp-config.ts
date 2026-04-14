@@ -95,6 +95,11 @@ const llmProviders = {
         apiKey: 'ollama',
         model: 'gpt-oss:120b',
     },
+    'ollama-gpt-gemma4:26b': {
+        baseURL: 'https://llm-agent.azure-np.pathlockgrc.com/v1',
+        apiKey: 'ollama',
+        model: 'gemma4:26b-a4b-it-q8_0',
+    },
     // OpenRouter - OpenAI Models (supports tools)
     'openrouter-gpt5.3': {
         baseURL: 'https://openrouter.ai/api/v1',
@@ -135,6 +140,17 @@ const llmProviders = {
         apiKey: process.env.OPENROUTER_API_KEY || '',
         model: 'google/gemini-flash-1.5',
     },
+    'openrouter-gemma-4-31b-it': {
+        baseURL: 'https://openrouter.ai/api/v1',
+        apiKey: process.env.OPENROUTER_API_KEY || '',
+        model: 'google/gemma-4-31b-it',
+    },
+
+    'openrouter-gemma-4-26b-a4b-it': {
+        baseURL: 'https://openrouter.ai/api/v1',
+        apiKey: process.env.OPENROUTER_API_KEY || '',
+        model: 'google/gemma-4-26b-a4b-it',
+    },
     // OpenRouter - Anthropic Claude (supports tools)
     'openrouter-claude-sonnet': {
         baseURL: 'https://openrouter.ai/api/v1',
@@ -148,7 +164,9 @@ type LLMProviderKey = keyof typeof llmProviders;
 const activeKey = (process.env.LLM_PROVIDER || 'openai-gpt5') as LLMProviderKey;
 const activeProvider = llmProviders[activeKey] ?? llmProviders['ollama-qwen'];
 
-const useAzureAdAuth = activeKey === 'ollama-gpt-oss-120b';
+
+// use useAzureAdAuth in case it starts with ollama-
+const useAzureAdAuth = activeKey.startsWith('ollama-');
 
 const providerFetch = useAzureAdAuth
     ? async (input: RequestInfo | URL, init?: RequestInit) => {
